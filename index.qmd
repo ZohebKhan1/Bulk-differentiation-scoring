@@ -233,7 +233,7 @@ in D21 samples. Rows split into $k = 3$ clusters.
 #|   Z-scored expression of temporally variable genes
 #|   across D21 control timepoints (k=3 row clusters,
 #|   viridis palette, winsorized at +/- 2)
-#| fig-height: 6
+#| fig-height: 4.5
 #| fig-width: 4
 
 hm_mat <- as.matrix(
