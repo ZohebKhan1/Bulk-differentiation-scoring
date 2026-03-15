@@ -1,0 +1,41 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
+
+body {
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif !important;
+  color: #000 !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+li,
+td,
+th,
+span,
+figcaption,
+.quarto-title .title,
+.quarto-title .subtitle,
+.text-muted,
+.text-secondary,
+.sidebar-title,
+.menu-text,
+.nav-link,
+caption {
+  color: #000 !important;
+}
+
+code {
+  color: #000;
+}
+
+a {
+  color: #1e40af;
+}

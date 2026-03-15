@@ -1,167 +1,135 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 620"
-     font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 425"
+     font-family="Inter, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="flowArrow" markerWidth="8" markerHeight="6"
             refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="#94A3B8"/>
+      <polygon points="0 0, 8 3, 0 6" fill="#000"/>
     </marker>
   </defs>
 
-  <!-- Phase labels (left side) -->
-  <text x="8" y="58" font-size="9" fill="#94A3B8"
-        font-weight="bold"
-        transform="rotate(-90, 8, 58)">DATA</text>
-  <text x="8" y="230" font-size="9" fill="#94A3B8"
-        font-weight="bold"
-        transform="rotate(-90, 8, 230)">GENES</text>
-  <text x="8" y="398" font-size="9" fill="#94A3B8"
-        font-weight="bold"
-        transform="rotate(-90, 8, 398)">TRAJECTORY</text>
-  <text x="8" y="568" font-size="9" fill="#94A3B8"
-        font-weight="bold"
-        transform="rotate(-90, 8, 568)">SCORE</text>
-
-  <!-- Step 1: Load Count Matrix -->
-  <rect x="30" y="15" width="260" height="44" rx="8"
-        fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
-  <text x="160" y="33" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#1E40AF">
-    1. Load Count Matrix
-  </text>
-  <text x="160" y="48" text-anchor="middle"
-        font-size="10" fill="#3B82F6">
-    RNA-seq gene expression data
+  <!-- Step 1 -->
+  <rect x="20" y="12" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="35" text-anchor="middle"
+        font-size="12" fill="#000">
+    1. RNA-seq Count Matrix
   </text>
 
-  <!-- Arrow 1 -->
-  <line x1="160" y1="59" x2="160" y2="80"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 1-2 -->
+  <line x1="130" y1="48" x2="130" y2="62"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 2: Filter to Control -->
-  <rect x="30" y="84" width="260" height="44" rx="8"
-        fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
-  <text x="160" y="102" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#1E40AF">
+  <!-- Step 2 -->
+  <rect x="20" y="64" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="87" text-anchor="middle"
+        font-size="12" fill="#000">
     2. Subset Control Samples
   </text>
-  <text x="160" y="117" text-anchor="middle"
-        font-size="10" fill="#3B82F6">
-    D21 samples across timepoints
-  </text>
 
-  <!-- Arrow 2 -->
-  <line x1="160" y1="128" x2="160" y2="149"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 2-3 -->
+  <line x1="130" y1="100" x2="130" y2="114"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 3: DESeq2 LRT -->
-  <rect x="30" y="153" width="260" height="44" rx="8"
-        fill="#DCFCE7" stroke="#22C55E" stroke-width="1.5"/>
-  <text x="160" y="171" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#166534">
-    3. DESeq2 Likelihood Ratio Test
-  </text>
-  <text x="160" y="186" text-anchor="middle"
-        font-size="10" fill="#22C55E">
-    Full: ~ timepoint | Reduced: ~ 1
+  <!-- Step 3 -->
+  <rect x="20" y="116" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="139" text-anchor="middle"
+        font-size="12" fill="#000">
+    3. DESeq2 LRT
   </text>
 
-  <!-- Arrow 3 -->
-  <line x1="160" y1="197" x2="160" y2="218"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 3-4 -->
+  <line x1="130" y1="152" x2="130" y2="166"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 4: Select Temporal Genes -->
-  <rect x="30" y="222" width="260" height="44" rx="8"
-        fill="#DCFCE7" stroke="#22C55E" stroke-width="1.5"/>
-  <text x="160" y="240" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#166534">
-    4. Temporally Variable Genes
-  </text>
-  <text x="160" y="255" text-anchor="middle"
-        font-size="10" fill="#22C55E">
-    Filter by adjusted p-value
+  <!-- Step 4 -->
+  <rect x="20" y="168" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="191" text-anchor="middle"
+        font-size="12" fill="#000">
+    4. Select Temporal Genes
   </text>
 
-  <!-- Arrow 4 -->
-  <line x1="160" y1="266" x2="160" y2="287"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 4-5 -->
+  <line x1="130" y1="204" x2="130" y2="218"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 5: VST + PCA -->
-  <rect x="30" y="291" width="260" height="44" rx="8"
-        fill="#F3E8FF" stroke="#A855F7" stroke-width="1.5"/>
-  <text x="160" y="309" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#6B21A8">
-    5. VST Normalization + PCA
-  </text>
-  <text x="160" y="324" text-anchor="middle"
-        font-size="10" fill="#A855F7">
-    Control samples define PC space
+  <!-- Step 5 -->
+  <rect x="20" y="220" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="243" text-anchor="middle"
+        font-size="12" fill="#000">
+    5. PCA on Control Samples
   </text>
 
-  <!-- Arrow 5 -->
-  <line x1="160" y1="335" x2="160" y2="356"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 5-6 -->
+  <line x1="130" y1="256" x2="130" y2="270"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 6: Reference Vector -->
-  <rect x="30" y="360" width="260" height="44" rx="8"
-        fill="#F3E8FF" stroke="#A855F7" stroke-width="1.5"/>
-  <text x="160" y="378" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#6B21A8">
-    6. Define Reference Vector
-  </text>
-  <text x="160" y="393" text-anchor="middle"
-        font-size="10" fill="#A855F7">
-    Centroid Day 6 to Centroid Day 17
+  <!-- Step 6 -->
+  <rect x="20" y="272" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="295" text-anchor="middle"
+        font-size="12" fill="#000">
+    6. Define Centroid Vector
   </text>
 
-  <!-- Arrow 6 -->
-  <line x1="160" y1="404" x2="160" y2="425"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 6-7 -->
+  <line x1="130" y1="308" x2="130" y2="322"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 7: Project -->
-  <rect x="30" y="429" width="260" height="44" rx="8"
-        fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5"/>
-  <text x="160" y="447" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#92400E">
+  <!-- Step 7 -->
+  <rect x="20" y="324" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="347" text-anchor="middle"
+        font-size="12" fill="#000">
     7. Project All Samples
   </text>
-  <text x="160" y="462" text-anchor="middle"
-        font-size="10" fill="#F59E0B">
-    Onto reference vector in PC space
-  </text>
 
-  <!-- Arrow 7 -->
-  <line x1="160" y1="473" x2="160" y2="494"
-        stroke="#94A3B8" stroke-width="1.5"
+  <!-- Arrow 7-8 -->
+  <line x1="130" y1="360" x2="130" y2="374"
+        stroke="#000" stroke-width="1.2"
         marker-end="url(#flowArrow)"/>
 
-  <!-- Step 8: Maturation Score -->
-  <rect x="30" y="498" width="260" height="44" rx="8"
-        fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5"/>
-  <text x="160" y="516" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#92400E">
+  <!-- Step 8 -->
+  <rect x="20" y="376" width="220" height="36" rx="4"
+        fill="#fff" stroke="#000" stroke-width="1.2"/>
+  <text x="130" y="399" text-anchor="middle"
+        font-size="12" fill="#000">
     8. Compute Maturation Score
   </text>
-  <text x="160" y="531" text-anchor="middle"
-        font-size="10" fill="#F59E0B">
-    Normalized scalar: 0 (early) to 1 (late)
+
+  <!-- Bracket: DATA (steps 1-2) -->
+  <path d="M 255,12 L 265,12 L 265,100 L 255,100"
+        fill="none" stroke="#000" stroke-width="1.2"/>
+  <text x="275" y="60" font-size="11"
+        font-weight="600" fill="#000">DATA</text>
+
+  <!-- Bracket: GENES (steps 3-4) -->
+  <path d="M 255,116 L 265,116 L 265,204 L 255,204"
+        fill="none" stroke="#000" stroke-width="1.2"/>
+  <text x="275" y="164" font-size="11"
+        font-weight="600" fill="#000">GENES</text>
+
+  <!-- Bracket: TRAJECTORY (steps 5-6) -->
+  <path d="M 255,220 L 265,220 L 265,308 L 255,308"
+        fill="none" stroke="#000" stroke-width="1.2"/>
+  <text x="275" y="260" font-size="11"
+        font-weight="600" fill="#000">
+    <tspan x="275" dy="0">TRAJ-</tspan>
+    <tspan x="275" dy="14">ECTORY</tspan>
   </text>
 
-  <!-- Arrow 8 -->
-  <line x1="160" y1="542" x2="160" y2="563"
-        stroke="#94A3B8" stroke-width="1.5"
-        marker-end="url(#flowArrow)"/>
-
-  <!-- Step 9: Compare -->
-  <rect x="30" y="567" width="260" height="40" rx="8"
-        fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
-  <text x="160" y="591" text-anchor="middle"
-        font-size="12" font-weight="bold" fill="#991B1B">
-    Compare Control vs Experimental
-  </text>
+  <!-- Bracket: SCORE (steps 7-8) -->
+  <path d="M 255,324 L 265,324 L 265,412 L 255,412"
+        fill="none" stroke="#000" stroke-width="1.2"/>
+  <text x="275" y="372" font-size="11"
+        font-weight="600" fill="#000">SCORE</text>
 </svg>

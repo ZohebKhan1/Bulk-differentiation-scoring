@@ -19,13 +19,9 @@ execute:
 
 ## Overview
 
-This workflow quantifies how differentiation timing
-differs between experimental conditions using bulk
-RNA-seq data. It identifies temporally variable genes
-via the likelihood ratio test, constructs a reference
-trajectory through PCA space using control samples, and
-projects all samples onto that trajectory to compute a
-scalar maturation score.
+PCA-based method for comparing differentiation
+progression between conditions in bulk RNA-seq time
+course data.
 
 ![](assets/overview.svg){width="100%"}
 
@@ -42,38 +38,6 @@ genotype per timepoint).
 fig-align="center"}
 
 ## Mathematical Framework
-
-### Negative Binomial GLM
-
-DESeq2 models read counts with a negative binomial
-distribution, where each gene $i$ in sample $j$ follows:
-
-$$
-K_{ij} \sim \text{NB}\!\left(\mu_{ij},\; \alpha_i\right)
-$$
-
-$$
-\log_2(\mu_{ij}) = \sum_r \beta_r^{(i)}\, x_{jr}
-$$
-
-where $\alpha_i$ is the gene-specific dispersion and
-$x_{jr}$ are design matrix entries.
-
-### Likelihood Ratio Test
-
-The LRT compares a **full** model (including timepoint)
-against a **reduced** model (intercept only):
-
-$$
-D = -2\left[
-  \ell\!\left(\hat{\boldsymbol{\theta}}_{\text{reduced}}\right)
-  - \ell\!\left(\hat{\boldsymbol{\theta}}_{\text{full}}\right)
-\right]
-\;\sim\; \chi^2_{df_{\text{full}} - df_{\text{reduced}}}
-$$
-
-Genes with significant $D$ statistics (after BH
-correction) change expression across timepoints.
 
 ### PCA
 
@@ -124,10 +88,6 @@ s_i
   }
 $$
 
-Scores below 0 indicate less-differentiated-than-early
-control; scores above 1 indicate
-more-differentiated-than-late control.
-
 ---
 
 ## Analysis
@@ -169,10 +129,8 @@ cat(
 
 ### Feature Selection: Likelihood Ratio Test
 
-The LRT is run on D21 control samples only. The full
-model includes timepoint; the reduced model is
-intercept-only. Genes where timepoint significantly
-explains variance are temporally variable.
+DESeq2 LRT on D21 controls: full model includes
+timepoint, reduced model is intercept-only.
 
 ```{r}
 #| label: lrt
@@ -204,10 +162,6 @@ cat(
 )
 ```
 
-Top 1000 genes (by adjusted p-value) are used for PCA
-and trajectory definition; all significant genes are
-shown in the heatmap below.
-
 ```{r}
 #| label: top-genes
 n_top <- min(1000, length(sig_genes))
@@ -218,8 +172,8 @@ cat("Genes used for PCA:", n_top)
 ### Temporal Gene Heatmap
 
 Z-scored VST expression of all temporally variable
-genes across D21 samples, ordered by timepoint.
-Values are winsorized at $\pm 2$.
+genes (padj < 0.05) in D21 samples. Values winsorized
+at $\pm 2$.
 
 ```{r}
 #| label: fig-heatmap
@@ -283,9 +237,6 @@ draw(ht)
 ```
 
 ### Example Temporal Patterns
-
-Three representative genes illustrating distinct
-temporal behaviors identified by the LRT.
 
 ```{r}
 #| label: fig-lineplot
@@ -375,7 +326,7 @@ ggplot() +
   geom_point(
     data = plot_df,
     aes(x = timepoint, y = expr),
-    color = "#94A3B8", size = 2, alpha = 0.6
+    color = "#000000", size = 2, alpha = 0.6
   ) +
   geom_errorbar(
     data = plot_means,
@@ -408,10 +359,6 @@ ggplot() +
 ```
 
 ### PCA: Samples in PC Space
-
-PCA is computed on D21 controls using the top LRT
-genes. All 18 samples are then projected into this
-control-defined space.
 
 ```{r}
 #| label: fig-pca-3d
@@ -484,11 +431,6 @@ plot_ly(
 ```
 
 ### Reference Vector and Centroid Projection
-
-The reference trajectory is defined by connecting the
-D21 Day 6 centroid to the D21 Day 17 centroid in PC
-space. Each centroid is the mean of the replicate
-coordinates:
 
 $$
 \bar{\mathbf{z}}_{\text{Day}\,6}
@@ -702,16 +644,16 @@ ggplot(
   )) +
   geom_hline(
     yintercept = c(0, 1),
-    linetype = "dashed", color = "#94A3B8"
+    linetype = "dashed", color = "#000000"
   ) +
   annotate(
     "text", x = 0.55, y = 0.03,
-    label = "Day 6 ref", color = "#94A3B8",
+    label = "Day 6 ref", color = "#000000",
     size = 3, hjust = 0
   ) +
   annotate(
     "text", x = 0.55, y = 1.03,
-    label = "Day 17 ref", color = "#94A3B8",
+    label = "Day 17 ref", color = "#000000",
     size = 3, hjust = 0
   ) +
   labs(
@@ -768,7 +710,7 @@ ggplot(traj_df, aes(
   )) +
   geom_hline(
     yintercept = c(0, 1),
-    linetype = "dashed", color = "#CBD5E1"
+    linetype = "dashed", color = "#000000", alpha = 0.3
   ) +
   labs(
     x = NULL, y = "Maturation Score",
@@ -817,13 +759,7 @@ knitr::kable(
 )
 ```
 
-Positive differences indicate T21 is further along the
-control differentiation trajectory; negative differences
-indicate T21 is behind. The results suggest T21 neural
-progenitors differentiate faster early but fail to reach
-the D21 endpoint by Day 17.
-
 ---
 
-*Analysis based on data from Martinez et al. (2024).
-Stem Cell Reports 17(6): 1380-1396.*
+*Data: Martinez et al. (2024). Front Cell Neurosci
+18: 1341141.*
