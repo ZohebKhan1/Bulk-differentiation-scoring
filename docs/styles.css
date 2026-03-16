@@ -26,10 +26,27 @@ caption {
   color: #000 !important;
 }
 
+h2 {
+  border-bottom: 1px solid #000;
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+}
+
+h3 {
+  border-bottom: 1px solid #000;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+}
+
 code {
   color: #000;
 }
 
 a {
   color: #1e40af;
+}
+
+/* Code fold toggle tighter to section */
+details.code-fold {
+  margin-top: 4px;
 }

@@ -59,54 +59,88 @@ fig-align="center"}
 
 ## Mathematical Framework
 
-### PCA
+### Dimensionality Reduction via PCA
 
-Given a centered expression matrix $\mathbf{X}_c$
-(genes $\times$ samples):
-
-$$
-\mathbf{X}_c
-= \mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^\top
-$$
-
-Each sample's coordinates in PC space:
+Given a VST-normalized expression matrix
+$X \in \mathbb{R}^{p \times n}$ ($p$ genes, $n$
+samples), center each gene across samples:
 
 $$
-\mathbf{z}_i
-= \mathbf{V}^\top
-  \!\left(\mathbf{x}_i - \bar{\mathbf{x}}\right)
+x_{ij}^{c} = x_{ij}
+  - \frac{1}{n}\sum_{k=1}^{n} x_{ik}
+$$
+
+Compute the sample covariance matrix and its
+eigendecomposition:
+
+$$
+C = \frac{1}{n-1}
+  \left(X^{c}\right)^{\!\top} X^{c}
+\in \mathbb{R}^{n \times n},
+\qquad
+C\,\mathbf{v}_k = \lambda_k\,\mathbf{v}_k,
+\qquad
+\lambda_1 \geq \lambda_2 \geq \cdots
+$$
+
+The $k$-th principal component score for sample $i$
+is the projection onto the $k$-th eigenvector:
+
+$$
+z_{ik} = \sum_{j=1}^{p} v_{kj}\, x_{ij}^{c}
+$$
+
+Each sample is represented by its first three PC
+coordinates, which together capture the majority
+of transcriptomic variance:
+
+$$
+\mathbf{z}_i = (z_{i1},\; z_{i2},\; z_{i3})
+  \in \mathbb{R}^3
+$$
+
+Variance explained by each component:
+
+$$
+\textrm{VE}_k = \frac{\lambda_k}
+  {\displaystyle\sum_{j=1}^{n}\lambda_j}
 $$
 
 ### Centroid Vector
 
-The reference vector connects control centroids at
-the earliest and latest timepoints:
+For a set of $n_t$ reference samples at timepoint
+$t$, the centroid in PC space is:
 
 $$
-\vec{v}
-= \bar{\mathbf{z}}_{t_{\text{late}}}
-  - \bar{\mathbf{z}}_{t_{\text{early}}}
-\qquad\text{where}\quad
 \bar{\mathbf{z}}_t
 = \frac{1}{n_t}\sum_{i \in t}\mathbf{z}_i
 $$
 
+The reference differentiation vector connects the
+earliest and latest control centroids:
+
+$$
+\vec{v}
+= \bar{\mathbf{z}}_{t_{\textrm{late}}}
+  - \bar{\mathbf{z}}_{t_{\textrm{early}}}
+$$
+
 ### Maturation Score
+
+Each sample is projected onto $\vec{v}$ and
+normalized so the early centroid maps to 0 and the
+late centroid maps to 1:
 
 $$
 s_i
 = \frac{
     \left(\mathbf{z}_i
-      - \bar{\mathbf{z}}_{t_{\text{early}}}\right)
+      - \bar{\mathbf{z}}_{t_{\textrm{early}}}\right)
     \cdot \vec{v}
   }{
     \lVert\vec{v}\rVert^2
   }
 $$
-
-By construction, $s \approx 0$ at the early control
-centroid and $s \approx 1$ at the late control
-centroid.
 
 ---
 
@@ -138,7 +172,6 @@ meta$timepoint <- factor(
   meta$timepoint, levels = c(6, 10, 17)
 )
 
-# Publication theme (adapted from reference style)
 theme_pub <- function(base_size = 10) {
   theme_classic(base_size = base_size) +
   theme(
@@ -172,26 +205,11 @@ theme_pub <- function(base_size = 10) {
   )
 }
 
-# Genotype colors
 col_d21 <- "#1F78B4"
 col_t21 <- "#E31A1C"
-
-cat(
-  "Samples:", nrow(meta), "\n",
-  "Genes:", nrow(raw_counts), "\n",
-  "Genotypes:", paste(
-    levels(factor(meta$genotype)), collapse = ", "
-  ), "\n",
-  "Timepoints:", paste(
-    levels(meta$timepoint), collapse = ", "
-  )
-)
 ```
 
 ### Feature Selection: Likelihood Ratio Test
-
-DESeq2 LRT on D21 controls: full model includes
-timepoint, reduced model is intercept-only.
 
 ```{r}
 #| label: lrt
@@ -223,9 +241,6 @@ cat(
 ```
 
 ### Temporally Variable Gene Heatmap
-
-Z-scored VST expression of all LRT-significant genes
-in D21 samples. Rows split into $k = 3$ clusters.
 
 ```{r}
 #| label: fig-heatmap
@@ -265,7 +280,9 @@ ht <- Heatmap(
   ),
   column_title    = c("Day 6", "Day 10", "Day 17"),
   column_gap      = unit(3, "mm"),
-  row_title       = paste0(length(sig_genes), " genes"),
+  row_title       = paste0(
+    length(sig_genes), " genes"
+  ),
   border          = FALSE,
   use_raster      = TRUE
 )
@@ -273,18 +290,20 @@ ht <- Heatmap(
 draw(ht)
 ```
 
-### Example Temporal Patterns
+### Temporal Expression Patterns
+
+Six temporal profiles identified among
+LRT-significant genes.
 
 ```{r}
-#| label: fig-lineplot
+#| label: fig-patterns
 #| fig-cap: >
-#|   Three representative LRT genes: monotonic
-#|   decline (left), transient peak (center),
-#|   monotonic increase (right). Points are
-#|   individual replicates; line connects means;
-#|   bars show range.
-#| fig-height: 2.5
-#| fig-width: 7
+#|   Six temporal expression patterns identified
+#|   by the LRT. Each panel shows the gene with the
+#|   largest dynamic range for that pattern class.
+#|   Points = replicates, line = mean, bars = range.
+#| fig-height: 4.5
+#| fig-width: 8
 
 ctrl_vst <- vst_counts[sig_genes, ctrl_meta$sample_id]
 tp_num <- as.numeric(
@@ -295,44 +314,61 @@ mean_d6  <- rowMeans(ctrl_vst[, tp_num == 6])
 mean_d10 <- rowMeans(ctrl_vst[, tp_num == 10])
 mean_d17 <- rowMeans(ctrl_vst[, tp_num == 17])
 
-peak_early <- names(which(
-  mean_d6 > mean_d10 & mean_d10 > mean_d17
-))
-mono_inc <- names(which(
-  mean_d6 < mean_d10 & mean_d10 < mean_d17
-))
-peak_mid <- names(which(
-  mean_d10 > mean_d6 & mean_d10 > mean_d17
-))
+# All 6 possible 3-timepoint orderings
+patterns <- list(
+  "Monotonic Decrease" = names(which(
+    mean_d6 > mean_d10 & mean_d10 > mean_d17
+  )),
+  "Early Drop" = names(which(
+    mean_d6 > mean_d17 & mean_d17 > mean_d10
+  )),
+  "U-shape" = names(which(
+    mean_d17 > mean_d6 & mean_d6 > mean_d10
+  )),
+  "Transient Peak" = names(which(
+    mean_d10 > mean_d6 & mean_d6 > mean_d17
+  )),
+  "Peak at Day 10" = names(which(
+    mean_d10 > mean_d17 & mean_d17 > mean_d6
+  )),
+  "Monotonic Increase" = names(which(
+    mean_d17 > mean_d10 & mean_d10 > mean_d6
+  ))
+)
 
 dyn_range <- apply(
   cbind(mean_d6, mean_d10, mean_d17), 1,
   function(x) max(x) - min(x)
 )
 
-gene_early <- peak_early[
-  which.max(dyn_range[peak_early])
-]
-gene_inc <- mono_inc[
-  which.max(dyn_range[mono_inc])
-]
-gene_mid <- peak_mid[
-  which.max(dyn_range[peak_mid])
-]
-
-example_genes <- c(gene_early, gene_mid, gene_inc)
-pattern_names <- c(
-  "Declining from Day 6",
-  "Peak at Day 10",
-  "Monotonic Increase"
+# Pick top gene per pattern
+example_genes <- vapply(
+  names(patterns), function(nm) {
+    genes <- patterns[[nm]]
+    if (length(genes) == 0) return(NA_character_)
+    genes[which.max(dyn_range[genes])]
+  }, character(1)
 )
 
+# Count genes per pattern
+pattern_counts <- vapply(
+  patterns, length, integer(1)
+)
+
+# Keep only patterns with genes
+keep <- !is.na(example_genes)
+example_genes <- example_genes[keep]
+pattern_names <- names(example_genes)
+
+# Build plot data
 plot_df <- do.call(rbind, lapply(
   seq_along(example_genes), function(i) {
     g <- example_genes[i]
+    nm <- pattern_names[i]
     data.frame(
       gene      = g,
-      pattern   = pattern_names[i],
+      pattern   = nm,
+      n_genes   = pattern_counts[nm],
       timepoint = tp_num,
       expr      = as.numeric(ctrl_vst[g, ]),
       sample    = ctrl_meta$sample_id
@@ -341,7 +377,9 @@ plot_df <- do.call(rbind, lapply(
 ))
 
 plot_df$label <- paste0(
-  plot_df$pattern, "\n(", plot_df$gene, ")"
+  plot_df$pattern,
+  " (n=", plot_df$n_genes, ")",
+  "\n", plot_df$gene
 )
 plot_df$label <- factor(
   plot_df$label, levels = unique(plot_df$label)
@@ -375,7 +413,7 @@ ggplot() +
     stroke = 0.25, color = "black",
     fill = col_d21, alpha = 1
   ) +
-  facet_wrap(~ label, nrow = 1,
+  facet_wrap(~ label, nrow = 2,
              scales = "free_y") +
   scale_x_continuous(
     breaks = c(6, 10, 17),
@@ -386,9 +424,6 @@ ggplot() +
 ```
 
 ### D21 Control PC Space
-
-PCA on D21 controls using top 1000 LRT genes defines
-the reference coordinate system.
 
 ```{r}
 #| label: pca-compute
@@ -414,7 +449,10 @@ pca_df <- data.frame(
   PC3       = all_proj[, 3],
   sample    = meta$sample_id,
   genotype  = meta$genotype,
-  timepoint = paste0("Day ", meta$timepoint)
+  timepoint = factor(
+    paste0("Day ", meta$timepoint),
+    levels = c("Day 6", "Day 10", "Day 17")
+  )
 )
 
 tp_num_all <- as.numeric(
@@ -447,43 +485,98 @@ scene_axes <- list(
     "PC3 (", var_pct[3], "%)"
   ))
 )
+
+# Curved arc through the 3 centroids
+t_param <- c(0, 0.5, 1)
+t_interp <- seq(0, 1, length.out = 40)
+arc_x <- spline(
+  t_param,
+  c(centroid_d6[1], centroid_d10[1],
+    centroid_d17[1]),
+  xout = t_interp
+)$y
+arc_y <- spline(
+  t_param,
+  c(centroid_d6[2], centroid_d10[2],
+    centroid_d17[2]),
+  xout = t_interp
+)$y
+arc_z <- spline(
+  t_param,
+  c(centroid_d6[3], centroid_d10[3],
+    centroid_d17[3]),
+  xout = t_interp
+)$y
+
+arc_dir <- c(
+  arc_x[40] - arc_x[39],
+  arc_y[40] - arc_y[39],
+  arc_z[40] - arc_z[39]
+)
 ```
 
 ```{r}
 #| label: fig-d21-pca
 #| fig-cap: >
-#|   D21 control samples in PC space defined by
-#|   top 1000 LRT genes, colored by timepoint
+#|   D21 control samples in PC space (top 1000 LRT
+#|   genes). Curved line traces the differentiation
+#|   arc through timepoint centroids.
 
 ctrl_pca <- pca_df[pca_df$genotype == "D21", ]
 
-plot_ly(
-  ctrl_pca,
-  x = ~PC1, y = ~PC2, z = ~PC3,
-  color  = ~timepoint,
-  colors = tp_colors,
-  type   = "scatter3d",
-  mode   = "markers",
-  marker = list(size = 4, opacity = 1),
-  text   = ~paste(sample, timepoint),
-  hoverinfo = "text"
-) %>%
+plot_ly() %>%
+  add_trace(
+    data = ctrl_pca,
+    x = ~PC1, y = ~PC2, z = ~PC3,
+    color  = ~timepoint,
+    colors = tp_colors,
+    type   = "scatter3d", mode = "markers",
+    marker = list(size = 4, opacity = 1),
+    text   = ~paste(sample, timepoint),
+    hoverinfo = "text"
+  ) %>%
+  add_trace(
+    x = arc_x, y = arc_y, z = arc_z,
+    type = "scatter3d", mode = "lines",
+    line = list(
+      width = 5, color = "#000", dash = "solid"
+    ),
+    name = "Differentiation Arc",
+    showlegend = TRUE
+  ) %>%
+  add_trace(
+    type = "cone",
+    x = arc_x[40], y = arc_y[40], z = arc_z[40],
+    u = arc_dir[1], v = arc_dir[2],
+    w = arc_dir[3],
+    sizemode = "absolute", sizeref = 2,
+    anchor = "tail", showscale = FALSE,
+    colorscale = list(c(0, "#000"), c(1, "#000")),
+    name = "", showlegend = FALSE
+  ) %>%
   layout(scene = scene_axes)
 ```
 
 ### Choosing the Reference Vector
 
-Three possible vectors connect pairs of D21 control
-centroids. Each captures a different segment of the
-differentiation trajectory.
+Three possible centroid-to-centroid vectors, each
+capturing a different segment of the trajectory.
 
 ```{r}
 #| label: fig-vector-options
 #| fig-cap: >
-#|   Three candidate reference vectors on D21
-#|   controls: Day 6 to Day 10 (early segment),
-#|   Day 10 to Day 17 (late segment),
-#|   Day 6 to Day 17 (full trajectory, selected)
+#|   Three candidate reference vectors. The full
+#|   trajectory (Day 6 to Day 17, green solid) is
+#|   selected because it spans the complete
+#|   differentiation arc.
+
+vec_early <- centroid_d10 - centroid_d6
+vec_late  <- centroid_d17 - centroid_d10
+vec_full  <- centroid_d17 - centroid_d6
+
+mid_early <- (centroid_d6 + centroid_d10) / 2
+mid_late  <- (centroid_d10 + centroid_d17) / 2
+mid_full  <- (centroid_d6 + centroid_d17) / 2
 
 plot_ly() %>%
   add_trace(
@@ -503,7 +596,7 @@ plot_ly() %>%
           centroid_d17[2]),
     z = c(centroid_d6[3], centroid_d10[3],
           centroid_d17[3]),
-    type   = "scatter3d", mode = "markers",
+    type = "scatter3d", mode = "markers",
     marker = list(
       size = 7, color = "#000",
       symbol = "diamond", opacity = 1
@@ -512,6 +605,7 @@ plot_ly() %>%
     text = c("Day 6", "Day 10", "Day 17"),
     hoverinfo = "text"
   ) %>%
+  # Early vector
   add_trace(
     x = c(centroid_d6[1], centroid_d10[1]),
     y = c(centroid_d6[2], centroid_d10[2]),
@@ -520,8 +614,31 @@ plot_ly() %>%
     line = list(
       width = 5, color = "#6366F1", dash = "dot"
     ),
-    name = "D6 -> D10 (early)"
+    name = "Early (D6 -> D10)"
   ) %>%
+  add_trace(
+    type = "cone",
+    x = centroid_d10[1], y = centroid_d10[2],
+    z = centroid_d10[3],
+    u = vec_early[1], v = vec_early[2],
+    w = vec_early[3],
+    sizemode = "absolute", sizeref = 2,
+    anchor = "tail", showscale = FALSE,
+    colorscale = list(
+      c(0, "#6366F1"), c(1, "#6366F1")
+    ),
+    showlegend = FALSE, name = ""
+  ) %>%
+  # Early label
+  add_trace(
+    x = mid_early[1], y = mid_early[2],
+    z = mid_early[3],
+    type = "scatter3d", mode = "text",
+    text = "Early",
+    textfont = list(size = 11, color = "#6366F1"),
+    showlegend = FALSE, name = ""
+  ) %>%
+  # Late vector
   add_trace(
     x = c(centroid_d10[1], centroid_d17[1]),
     y = c(centroid_d10[2], centroid_d17[2]),
@@ -530,27 +647,69 @@ plot_ly() %>%
     line = list(
       width = 5, color = "#F59E0B", dash = "dot"
     ),
-    name = "D10 -> D17 (late)"
+    name = "Late (D10 -> D17)"
   ) %>%
+  add_trace(
+    type = "cone",
+    x = centroid_d17[1], y = centroid_d17[2],
+    z = centroid_d17[3],
+    u = vec_late[1], v = vec_late[2],
+    w = vec_late[3],
+    sizemode = "absolute", sizeref = 2,
+    anchor = "tail", showscale = FALSE,
+    colorscale = list(
+      c(0, "#F59E0B"), c(1, "#F59E0B")
+    ),
+    showlegend = FALSE, name = ""
+  ) %>%
+  # Late label
+  add_trace(
+    x = mid_late[1], y = mid_late[2],
+    z = mid_late[3],
+    type = "scatter3d", mode = "text",
+    text = "Late",
+    textfont = list(size = 11, color = "#F59E0B"),
+    showlegend = FALSE, name = ""
+  ) %>%
+  # Full vector
   add_trace(
     x = c(centroid_d6[1], centroid_d17[1]),
     y = c(centroid_d6[2], centroid_d17[2]),
     z = c(centroid_d6[3], centroid_d17[3]),
     type = "scatter3d", mode = "lines",
     line = list(width = 7, color = "#059669"),
-    name = "D6 -> D17 (full)"
+    name = "Full (D6 -> D17)"
+  ) %>%
+  add_trace(
+    type = "cone",
+    x = centroid_d17[1] + vec_late[1] * 0.01,
+    y = centroid_d17[2] + vec_late[2] * 0.01,
+    z = centroid_d17[3] + vec_late[3] * 0.01,
+    u = vec_full[1], v = vec_full[2],
+    w = vec_full[3],
+    sizemode = "absolute", sizeref = 2.5,
+    anchor = "tail", showscale = FALSE,
+    colorscale = list(
+      c(0, "#059669"), c(1, "#059669")
+    ),
+    showlegend = FALSE, name = ""
+  ) %>%
+  # Full label
+  add_trace(
+    x = mid_full[1], y = mid_full[2],
+    z = mid_full[3],
+    type = "scatter3d", mode = "text",
+    text = "Full",
+    textfont = list(
+      size = 12, color = "#059669",
+      family = "Arial"
+    ),
+    showlegend = FALSE, name = ""
   ) %>%
   layout(scene = scene_axes)
 ```
 
-The **full trajectory** vector (Day 6 to Day 17) is
-used because it captures the complete differentiation
-arc.
-
 ### All Samples in Reference PC Space
-
-All 18 samples projected into the D21-defined space.
-Color = timepoint, shape = genotype.
 
 ```{r}
 #| label: fig-all-pca
@@ -575,14 +734,14 @@ plot_ly(
   layout(scene = scene_axes)
 ```
 
-### Reference Trajectory with Centroid Vector
+### Reference Trajectory
 
 ```{r}
 #| label: fig-ref-trajectory
 #| fig-cap: >
-#|   Reference trajectory (green) from D21 Day 6 to
-#|   Day 17 centroid. Black diamonds mark centroids.
-#|   All 18 samples shown.
+#|   Reference trajectory (green) from D21 Day 6
+#|   to Day 17 centroid with arrowhead.
+#|   Black diamonds = centroids.
 
 ref_vec <- centroid_d17 - centroid_d6
 
@@ -603,7 +762,7 @@ plot_ly() %>%
     x = c(centroid_d6[1], centroid_d17[1]),
     y = c(centroid_d6[2], centroid_d17[2]),
     z = c(centroid_d6[3], centroid_d17[3]),
-    type   = "scatter3d", mode = "markers",
+    type = "scatter3d", mode = "markers",
     marker = list(
       size = 7, color = "#000",
       symbol = "diamond", opacity = 1
@@ -623,16 +782,13 @@ plot_ly() %>%
   ) %>%
   add_trace(
     type = "cone",
-    x = centroid_d17[1],
-    y = centroid_d17[2],
+    x = centroid_d17[1], y = centroid_d17[2],
     z = centroid_d17[3],
     u = ref_vec[1] * 0.15,
     v = ref_vec[2] * 0.15,
     w = ref_vec[3] * 0.15,
-    sizemode  = "absolute",
-    sizeref   = 3,
-    anchor    = "tail",
-    showscale = FALSE,
+    sizemode = "absolute", sizeref = 3,
+    anchor = "tail", showscale = FALSE,
     colorscale = list(
       c(0, "#059669"), c(1, "#059669")
     ),
@@ -642,20 +798,6 @@ plot_ly() %>%
 ```
 
 ### Sample Projections onto Trajectory
-
-Each sample is projected onto $\vec{v}$ and
-normalized:
-
-$$
-s_i
-= \frac{
-    \left(\mathbf{z}_i
-      - \bar{\mathbf{z}}_{\text{Day}\,6}\right)
-    \cdot \vec{v}
-  }{
-    \lVert\vec{v}\rVert^2
-  }
-$$
 
 ```{r}
 #| label: scores-compute
@@ -667,28 +809,25 @@ scores <- apply(all_proj[, 1:3], 1, function(z) {
 score_df <- data.frame(
   sample    = meta$sample_id,
   genotype  = meta$genotype,
-  timepoint = paste0("Day ", meta$timepoint),
+  timepoint = factor(
+    paste0("Day ", meta$timepoint),
+    levels = c("Day 6", "Day 10", "Day 17")
+  ),
   score     = scores
-)
-score_df$timepoint <- factor(
-  score_df$timepoint,
-  levels = c("Day 6", "Day 10", "Day 17")
 )
 ```
 
 ```{r}
 #| label: fig-projection-strip
 #| fig-cap: >
-#|   Sample projections onto the D21 reference
-#|   trajectory. Each point is one sample. Score
-#|   0 = Day 6 centroid, 1 = Day 17 centroid.
+#|   Each sample projected onto the reference vector.
+#|   Score 0 = Day 6 centroid, 1 = Day 17 centroid.
 #| fig-height: 3
 #| fig-width: 6
 
 ggplot(
   score_df,
-  aes(x = score, y = genotype,
-      fill = genotype)
+  aes(x = score, y = genotype, fill = genotype)
 ) +
   geom_vline(
     xintercept = c(0, 1),
@@ -697,8 +836,7 @@ ggplot(
   ) +
   geom_point(
     shape = 21, size = 1.8,
-    stroke = 0.25, color = "black",
-    alpha = 1
+    stroke = 0.25, color = "black", alpha = 1
   ) +
   facet_wrap(~ timepoint, ncol = 1) +
   scale_fill_manual(values = c(
@@ -748,8 +886,8 @@ knitr::kable(
 #| label: fig-scores
 #| fig-cap: >
 #|   Maturation score by genotype and timepoint.
-#|   Dashed lines at 0 (Day 6 control centroid)
-#|   and 1 (Day 17 control centroid).
+#|   Dashed lines mark Day 6 (s=0) and Day 17
+#|   (s=1) control centroids.
 #| fig-height: 3.5
 #| fig-width: 4.5
 
