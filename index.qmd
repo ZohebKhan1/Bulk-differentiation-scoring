@@ -246,7 +246,7 @@ cat(
 #| label: fig-heatmap
 #| fig-cap: >
 #|   Z-scored expression of temporally variable genes
-#|   across D21 control timepoints (k=3 row clusters,
+#|   across D21 control timepoints (k=4 row clusters,
 #|   viridis palette, winsorized at +/- 2)
 #| fig-height: 4.5
 #| fig-width: 4
@@ -270,7 +270,7 @@ ht <- Heatmap(
   cluster_columns        = FALSE,
   cluster_rows           = TRUE,
   clustering_method_rows = "ward.D2",
-  row_km                 = 3,
+  row_km                 = 4,
   row_gap                = unit(2, "mm"),
   show_row_names         = FALSE,
   show_column_names      = FALSE,
@@ -1113,6 +1113,190 @@ knitr::kable(
     "Difference", "% Difference"
   ),
   caption = "Maturation score differences (T21 - D21)"
+)
+```
+
+---
+
+## Leave-One-Out Validation
+
+To validate that the reference trajectory accurately
+classifies samples by differentiation stage, we hold
+out one replicate from each D21 timepoint, build the
+trajectory from the remaining $n = 2$ replicates, and
+score the held-out samples. No T21 samples are used.
+
+```{r}
+#| label: loo-compute
+#| cache: true
+
+# Hold out replicate 1 from each timepoint
+holdout_ids <- c(
+  ctrl_meta$sample_id[
+    ctrl_meta$timepoint == 6][1],
+  ctrl_meta$sample_id[
+    ctrl_meta$timepoint == 10][1],
+  ctrl_meta$sample_id[
+    ctrl_meta$timepoint == 17][1]
+)
+train_ids <- setdiff(
+  ctrl_meta$sample_id, holdout_ids
+)
+
+cat(
+  "Training samples (n=6):",
+  paste(train_ids, collapse = ", "), "\n",
+  "Held-out samples (n=3):",
+  paste(holdout_ids, collapse = ", ")
+)
+
+# LRT on training set
+train_meta <- ctrl_meta[
+  ctrl_meta$sample_id %in% train_ids, ]
+train_counts <- raw_counts[, train_ids]
+
+dds_loo <- DESeqDataSetFromMatrix(
+  countData = train_counts,
+  colData   = train_meta,
+  design    = ~ timepoint
+)
+dds_loo <- DESeq(
+  dds_loo, test = "LRT", reduced = ~ 1
+)
+res_loo <- results(dds_loo)
+res_loo <- res_loo[order(res_loo$padj), ]
+
+sig_loo <- rownames(res_loo)[
+  !is.na(res_loo$padj) & res_loo$padj < 0.05
+]
+n_top_loo <- min(1000, length(sig_loo))
+top_loo <- head(rownames(res_loo), n_top_loo)
+
+cat(
+  "\nLRT significant genes:", length(sig_loo),
+  "\nGenes used for PCA:", n_top_loo
+)
+
+# PCA on training samples
+pca_loo <- prcomp(
+  t(as.matrix(vst_counts[top_loo, train_ids])),
+  scale. = TRUE, center = TRUE
+)
+
+# Project all D21 samples (train + holdout)
+all_d21_proj <- predict(
+  pca_loo,
+  t(as.matrix(
+    vst_counts[top_loo, ctrl_meta$sample_id]
+  ))
+)
+
+# Centroids from training samples only
+tp_train <- as.numeric(
+  as.character(train_meta$timepoint)
+)
+c_d6  <- colMeans(
+  all_d21_proj[train_ids[tp_train == 6],  1:3]
+)
+c_d17 <- colMeans(
+  all_d21_proj[train_ids[tp_train == 17], 1:3]
+)
+rv <- c_d17 - c_d6
+
+# Score all D21 samples
+loo_scores <- apply(
+  all_d21_proj[, 1:3], 1, function(z) {
+    sum((z - c_d6) * rv) / sum(rv^2)
+  }
+)
+
+loo_df <- data.frame(
+  sample    = ctrl_meta$sample_id,
+  timepoint = factor(
+    paste0("Day ", ctrl_meta$timepoint),
+    levels = c("Day 6", "Day 10", "Day 17")
+  ),
+  score     = loo_scores[ctrl_meta$sample_id],
+  set       = ifelse(
+    ctrl_meta$sample_id %in% holdout_ids,
+    "Held-out", "Training"
+  )
+)
+```
+
+```{r}
+#| label: fig-loo
+#| fig-cap: >
+#|   Leave-one-out validation. Reference trajectory
+#|   built from n=2 D21 replicates per timepoint
+#|   (open circles). Held-out replicates (filled)
+#|   are scored along the trajectory. Accurate
+#|   classification = held-out samples land near
+#|   their expected position.
+#| fig-height: 3.5
+#| fig-width: 5.5
+
+ggplot(
+  loo_df,
+  aes(x = score, y = timepoint)
+) +
+  geom_vline(
+    xintercept = c(0, 1),
+    linetype = "dashed", color = "#000",
+    linewidth = 0.3, alpha = 0.4
+  ) +
+  geom_point(
+    aes(fill = timepoint, shape = set),
+    size = 2.5, stroke = 0.4, color = "black",
+    alpha = 1
+  ) +
+  scale_fill_manual(values = tp_colors) +
+  scale_shape_manual(
+    values = c("Training" = 1, "Held-out" = 21)
+  ) +
+  annotate(
+    "text", x = 0, y = 0.5,
+    label = "Day 6\ncentroid", size = 2.2,
+    hjust = 0.5, color = "#000"
+  ) +
+  annotate(
+    "text", x = 1, y = 0.5,
+    label = "Day 17\ncentroid", size = 2.2,
+    hjust = 0.5, color = "#000"
+  ) +
+  labs(
+    x = "Maturation Score", y = NULL,
+    shape = NULL, fill = NULL
+  ) +
+  guides(
+    fill = "none",
+    shape = guide_legend(
+      override.aes = list(size = 2)
+    )
+  ) +
+  theme_pub(base_size = 10) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "top"
+  )
+```
+
+```{r}
+#| label: loo-table
+
+knitr::kable(
+  loo_df %>%
+    select(sample, timepoint, set, score) %>%
+    mutate(score = round(score, 3)) %>%
+    arrange(timepoint, set),
+  col.names = c(
+    "Sample", "Timepoint", "Set", "Score"
+  ),
+  caption = paste(
+    "Leave-one-out validation scores.",
+    "Held-out samples should score near 0",
+    "(Day 6), ~0.5 (Day 10), and ~1 (Day 17)."
+  )
 )
 ```
 
