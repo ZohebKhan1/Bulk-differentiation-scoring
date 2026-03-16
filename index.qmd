@@ -554,6 +554,40 @@ plot_ly() %>%
     colorscale = list(c(0, "#000"), c(1, "#000")),
     name = "", showlegend = FALSE
   ) %>%
+  # Labels at centroids
+  add_trace(
+    x = centroid_d6[1], y = centroid_d6[2],
+    z = centroid_d6[3],
+    type = "scatter3d", mode = "text",
+    text = "Start",
+    textfont = list(
+      size = 12, color = "#000", family = "Arial"
+    ),
+    textposition = "top center",
+    showlegend = FALSE, name = ""
+  ) %>%
+  add_trace(
+    x = centroid_d10[1], y = centroid_d10[2],
+    z = centroid_d10[3],
+    type = "scatter3d", mode = "text",
+    text = "Middle",
+    textfont = list(
+      size = 12, color = "#000", family = "Arial"
+    ),
+    textposition = "top center",
+    showlegend = FALSE, name = ""
+  ) %>%
+  add_trace(
+    x = centroid_d17[1], y = centroid_d17[2],
+    z = centroid_d17[3],
+    type = "scatter3d", mode = "text",
+    text = "End",
+    textfont = list(
+      size = 12, color = "#000", family = "Arial"
+    ),
+    textposition = "top center",
+    showlegend = FALSE, name = ""
+  ) %>%
   layout(scene = scene_axes)
 ```
 
