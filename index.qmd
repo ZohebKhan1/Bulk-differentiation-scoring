@@ -789,6 +789,43 @@ plot_ly() %>%
     ),
     name = "", showlegend = FALSE
   ) %>%
+  # Cluster labels at centroids
+  add_trace(
+    x = centroid_d6[1], y = centroid_d6[2],
+    z = centroid_d6[3],
+    type = "scatter3d", mode = "text",
+    text = "Day 6",
+    textfont = list(
+      size = 11, color = tp_colors["Day 6"],
+      family = "Arial"
+    ),
+    textposition = "top center",
+    showlegend = FALSE, name = ""
+  ) %>%
+  add_trace(
+    x = centroid_d10[1], y = centroid_d10[2],
+    z = centroid_d10[3],
+    type = "scatter3d", mode = "text",
+    text = "Day 10",
+    textfont = list(
+      size = 11, color = tp_colors["Day 10"],
+      family = "Arial"
+    ),
+    textposition = "top center",
+    showlegend = FALSE, name = ""
+  ) %>%
+  add_trace(
+    x = centroid_d17[1], y = centroid_d17[2],
+    z = centroid_d17[3],
+    type = "scatter3d", mode = "text",
+    text = "Day 17",
+    textfont = list(
+      size = 11, color = tp_colors["Day 17"],
+      family = "Arial"
+    ),
+    textposition = "top center",
+    showlegend = FALSE, name = ""
+  ) %>%
   layout(scene = scene_axes)
 ```
 
