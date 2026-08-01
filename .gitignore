@@ -1,4 +1,4 @@
-# Local editor, tool, and R session metadata
+# Local editor and R session metadata
 .Rproj.user/
 .ruff_cache/
 .Rhistory
@@ -7,7 +7,6 @@
 .Renviron
 .env
 .DS_Store
-.r_codex_utils/
 
 # R and bookdown intermediates
 *_cache/
