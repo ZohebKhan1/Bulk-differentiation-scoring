@@ -212,6 +212,20 @@
   text-align: left;
 }
 
+.book .book-body .page-wrapper .page-inner section.normal .temporal-filter-diagram {
+  margin: 1.1rem auto 1.5rem;
+  max-width: 420px;
+  text-align: center;
+}
+
+.book .book-body .page-wrapper .page-inner section.normal .temporal-filter-diagram svg {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+  max-width: 100% !important;
+  width: 100%;
+}
+
 .book .book-body .page-wrapper .page-inner section.normal table {
   border-collapse: collapse;
   display: table;
@@ -366,12 +380,23 @@ details.code-fold > pre.sourceCode {
 }
 
 @media (max-width: 700px) {
+  .book.with-summary .book-body {
+    left: 0;
+  }
+
   .book .book-body .page-wrapper .page-inner {
+    box-sizing: border-box;
+    max-width: 100%;
     padding: 16px 18px 40px;
+    width: 100%;
   }
 
   .book .book-body .page-wrapper .page-inner section.normal {
     font-size: 16.5px;
+  }
+
+  .book .book-body .page-wrapper .page-inner section.normal .temporal-filter-diagram {
+    max-width: min(320px, calc(100vw - 68px));
   }
 
   .tutorial-title-block {

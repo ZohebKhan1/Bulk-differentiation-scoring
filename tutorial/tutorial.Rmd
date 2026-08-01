@@ -179,7 +179,19 @@ tutorial_figure(
 
 ## Select temporal genes
 
-Genes must pass three sequential filters. First, a gene’s maximum day-mean TMM-normalized CPM must be at least 10. Second, a DESeq2 likelihood-ratio test (LRT) must have a Benjamini-Hochberg adjusted p-value below \(10^{-7}\). Third, the range of day-mean VST expression must be at least 0.6.
+Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.
+
+```{=html}
+<div class="mermaid temporal-filter-diagram">
+flowchart TB
+    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]
+    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]
+    vst["VST<br/>day-mean range ≥ 0.6"]
+    temporal["Temporal genes"]
+
+    cpm --> lrt --> vst --> temporal
+</div>
+```
 
 The LRT compares a full count model containing cell line and categorical differentiation day with a reduced model containing cell line alone:
 
@@ -448,7 +460,6 @@ For a new study, select temporal genes and train the PCA/polyline model in an ap
 
 1. Love MI, Huber W, Anders S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology*. 2014;15:550.
 2. Strober BJ, Elorbany R, Rhodes K, et al. Dynamic genetic regulation of gene expression during cellular differentiation. *Science*. 2019;364:1287-1290.
-3. Xie Y. *bookdown: Authoring Books and Technical Documents with R Markdown*. 2016.
 
 # Session information
 

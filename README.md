@@ -84,7 +84,19 @@ Rscript tests/test_score_differentiation_timing.R
 
 ## Scientific contract
 
-Temporal genes must satisfy all three configured criteria: maximum day-mean TMM CPM at least 10, DESeq2 LRT adjusted p-value below `1e-7`, and day-mean VST range at least 0.6. PCA is centered without variance scaling and retains three PCs. Ordered day centroids form the scoring polyline; the day 1 and day 15 centroids anchor scores 0 and 1.
+Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.
+
+```mermaid
+flowchart TB
+    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]
+    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]
+    vst["VST<br/>day-mean range ≥ 0.6"]
+    temporal["Temporal genes"]
+
+    cpm --> lrt --> vst --> temporal
+```
+
+PCA is centered without variance scaling and retains three PCs. Ordered day centroids form the scoring polyline; the day 1 and day 15 centroids anchor scores 0 and 1.
 
 Leave-one-cell-line-out validation refits temporal-gene selection, PCA, and the polyline within each fold. The tracked VST matrix is shared across folds because its upstream construction pipeline is unavailable. These results are internal validation conditional on the processed GSE122380 cohort, not an external transferability estimate.
 
@@ -98,10 +110,3 @@ The repository starts from three tracked processed RDS objects. It does not incl
 
 1. Love MI, Huber W, Anders S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology*. 2014;15:550.
 2. Strober BJ, Elorbany R, Rhodes K, et al. Dynamic genetic regulation of gene expression during cellular differentiation. *Science*. 2019;364:1287-1290.
-3. Xie Y. *bookdown: Authoring Books and Technical Documents with R Markdown*. 2016.
-
-## Contact
-
-Zoheb Khan, Moskowitz Lab, University of Chicago
-
-zohebkhan600@gmail.com · [zohebkhan1.github.io](https://zohebkhan1.github.io/)
