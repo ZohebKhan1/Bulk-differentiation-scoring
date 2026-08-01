@@ -11,7 +11,14 @@
 # - data/GSE122380_vst.rds
 # ----
 
-# Load and align the three tracked tutorial inputs at their external-ingestion boundary
+#' Load and align the tracked GSE122380 inputs
+#'
+#' The loader owns validation of the processed-data boundary. It requires one
+#' metadata row per sample, identical sample membership across objects, and
+#' identical ordered gene IDs in the count and VST matrices.
+#'
+#' @return A list containing aligned `metadata`, `counts`, and `vst` objects,
+#'   plus their source paths and MD5 checksums.
 load_GSE122380_data <- function(
     metadata_path = 'data/GSE122380_metadata.rds',
     counts_path = 'data/GSE122380_counts.rds',

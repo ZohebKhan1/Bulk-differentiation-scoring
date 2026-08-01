@@ -26,22 +26,6 @@ tutorial_dependency_packages <- c(
   'viridis',
   'yaml'
 )
-missing_tutorial_packages <- tutorial_dependency_packages[
-  !vapply(
-    tutorial_dependency_packages,
-    requireNamespace,
-    logical(1),
-    quietly = TRUE
-  )
-]
-if (length(missing_tutorial_packages) > 0L) {
-  stop(
-    'Missing tutorial packages: ',
-    paste(missing_tutorial_packages, collapse = ', '),
-    '.',
-    call. = FALSE
-  )
-}
 tutorial_dependency_text <- paste(
   sprintf(
     '%s %s',
@@ -83,21 +67,6 @@ knitr::opts_chunk$set(
   message = FALSE,
   fig.align = 'center'
 )
-
-project_root <- normalizePath(
-  if (file.exists('../scripts/01_build_tutorial_objects.R')) '..' else '.',
-  mustWork = TRUE
-)
-knitr::opts_knit$set(root.dir = project_root)
-
-local({
-  previous_working_directory <- setwd(project_root)
-  on.exit(setwd(previous_working_directory))
-  source(
-    'scripts/01_build_tutorial_objects.R',
-    local = knitr::knit_global()
-  )
-})
 
 tutorial_figure <- function(filename, alt_text, width = '96%') {
   cat(
@@ -161,12 +130,12 @@ The tracked RDS files are the reproducible starting point for this repository. T
 ```{r sample-summary-table, echo=FALSE}
 sample_summary <- stats::aggregate(
   sample_id ~ day_numeric,
-  data = meta,
+  data = metadata,
   FUN = length
 )
 cell_line_summary <- stats::aggregate(
   cell_line ~ day_numeric,
-  data = meta,
+  data = metadata,
   FUN = function(cell_lines) length(unique(cell_lines))
 )
 data_summary <- merge(sample_summary, cell_line_summary, by = 'day_numeric')
@@ -206,7 +175,7 @@ tutorial_figure(
 
 <div class="tutorial-figure-caption"><strong>Figure 1.</strong> Experimental structure of the GSE122380 time course. <strong>a.</strong> PCA using the top 10% most variable VST genes, colored by differentiation day. <strong>b.</strong> Pearson correlation between day-mean profiles from the same variable-gene set.</div>
 
-# Method
+# Scoring workflow
 
 ## Select temporal genes
 
@@ -233,13 +202,16 @@ where \(\ell\) is the maximized model log likelihood. This tests whether categor
 ```{r temporal-filter-code, eval=FALSE, echo=TRUE}
 source('functions/select_temporal_genes.R')
 
+analysis_params <- yaml::read_yaml('config/analysis.yml')
+temporal_gene_params <- analysis_params$temporal_gene_selection
+
 temporal_selection <- select_temporal_genes(
   counts = counts,
   vst = vst,
-  metadata = meta,
-  expression_cpm_cutoff = 10,
-  lrt_padj_cutoff = 1e-7,
-  vst_dynamic_range_cutoff = 0.6
+  metadata = metadata,
+  expression_cpm_cutoff = temporal_gene_params$expression_cpm_cutoff,
+  lrt_padj_cutoff = temporal_gene_params$lrt_padj_cutoff,
+  vst_dynamic_range_cutoff = temporal_gene_params$vst_dynamic_range_cutoff
 )
 temporal_genes <- temporal_selection$temporal_genes
 ```
@@ -249,19 +221,15 @@ lrt_display <- data.frame(
   Metric = c(
     'Genes in the aligned count/VST input',
     'Genes with maximum day-mean TMM CPM >= 10',
-    'Genes tested by DESeq2 LRT',
     'Genes passing LRT adjusted p-value < 1e-7',
-    'Genes passing day-mean VST range >= 0.6',
-    'Temporal genes used for PCA and scoring',
+    'Genes passing all filters and used for scoring',
     'Interpretive heatmap clusters'
   ),
   Value = c(
-    format(lrt_summary$total_expressed_genes, big.mark = ','),
+    format(lrt_summary$input_genes, big.mark = ','),
     format(lrt_summary$genes_passing_day_mean_tmm_cpm, big.mark = ','),
-    format(lrt_summary$genes_tested_by_lrt, big.mark = ','),
     format(lrt_summary$genes_passing_lrt_padj, big.mark = ','),
-    format(lrt_summary$genes_passing_vst_dynamic_range, big.mark = ','),
-    format(lrt_summary$genes_passing_vst_dynamic_range, big.mark = ','),
+    format(lrt_summary$genes_passing_all_filters, big.mark = ','),
     '4'
   ),
   stringsAsFactors = FALSE
@@ -288,7 +256,7 @@ tutorial_figure(
 
 <div class="tutorial-figure-caption"><strong>Figure 2.</strong> Z-scored VST expression for the 1,500 displayed temporal genes. Rows are split into four descriptive clusters; columns are ordered by day.</div>
 
-The k=4 partition is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those 1,500 genes as the enrichment universe. These tests are not part of the scoring algorithm.
+The four-cluster partition uses Ward-D2 hierarchical clustering of Euclidean distances between robust-LOESS-smoothed, re-standardized day-mean profiles. It is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those genes as the enrichment universe. These tests are not part of the scoring algorithm.
 
 ```{r temporal-clusters, echo=FALSE, results='asis'}
 cat('<div id="fig-temporal-clusters" class="figure-anchor"></div>')
@@ -381,11 +349,11 @@ source('functions/score_differentiation_timing.R')
 
 timing_fit <- score_differentiation_timing(
   expression_matrix = vst,
-  metadata = meta,
+  metadata = metadata,
   temporal_genes = temporal_genes,
   sample_id_col = 'sample_id',
   time_col = 'day_numeric',
-  n_pcs = 3
+  n_pcs = analysis_params$timing_score$n_pcs
 )
 head(timing_fit$scores)
 ```
@@ -415,9 +383,9 @@ tutorial_figure(
 
 # Internal cell-line cross-validation
 
-Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate.
+Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out cell line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate.
 
-All 13 held-out lines contribute to the summary metrics and aggregate plots. Line `19190` is omitted only from the per-line panel grid so the display remains a balanced 3-by-4 layout.
+Fold-specific temporal genes are also divided into maturation and progenitor sets by the sign of their Spearman correlation with day. The reported accuracy metrics use the complete temporal set. All 13 held-out cell lines contribute; cell line `19190` is omitted only from the per-cell-line panel grid so the display remains a balanced 3-by-4 layout.
 
 ```{r loo-summary-table, echo=FALSE}
 loo_display_summary <- loo_accuracy_summary
@@ -431,10 +399,10 @@ knitr::kable(
 )
 ```
 
-```{r loo-line-predictions, echo=FALSE, results='asis'}
-cat('<div id="fig-loo-line-predictions" class="figure-anchor"></div>')
+```{r loo-cell-line-predictions, echo=FALSE, results='asis'}
+cat('<div id="fig-loo-cell-line-predictions" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_loo_line_predictions.svg',
+  'GSE122380_loo_cell_line_predictions.svg',
   'Predicted versus observed day trajectories for twelve displayed held-out cell lines.'
 )
 ```
@@ -472,7 +440,9 @@ tutorial_figure(
 
 # Interpretation and adaptation
 
-The score estimates position along this reference trajectory. It is not, by itself, a measure of cell quality, differentiation efficiency, lineage identity, potency, or biological directionality. For a new study, temporal genes and all PCA/polyline parameters should be trained on an appropriate reference cohort, while test samples should be projected without refitting the reference model. Gene identifiers, normalization, feature support, batch structure, reference-time coverage, and projection distance require explicit checks before comparing scores across datasets.
+The score estimates position along this reference trajectory. It does not establish cell quality, differentiation efficiency, lineage identity, potency, or biological directionality.
+
+For a new study, select temporal genes and train the PCA/polyline model in an appropriate reference cohort, then project test samples without refitting that model. Before comparing scores across datasets, verify gene identifiers, normalization, shared feature support, batch structure, reference-time coverage, and projection distance.
 
 # References
 
@@ -483,5 +453,10 @@ The score estimates position along this reference trajectory. It is not, by itse
 # Session information
 
 ```{r session-info}
-sessionInfo()
+session_info_lines <- sub(
+  '[[:space:]]+$',
+  '',
+  utils::capture.output(utils::sessionInfo())
+)
+cat(session_info_lines, sep = '\n')
 ```

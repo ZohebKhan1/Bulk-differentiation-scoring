@@ -4,7 +4,7 @@ tab:loo-summary-table
 introduction
 reuse-the-scorer
 data-and-scope
-method
+scoring-workflow
 select-temporal-genes
 train-the-pca-reference-space
 fit-and-score-the-day-centroid-polyline

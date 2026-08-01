@@ -18,10 +18,18 @@
 #' projected to its nearest finite polyline segment, so predicted times and
 #' normalized scores are bounded by the first and last reference timepoints.
 #'
-#' The returned list contains `scores`, `pca_coordinates`, `pca_fit`,
-#' `centroid_polyline`, `temporal_genes`, and `reference_time_range`. The score
-#' table always uses `sample_id`, `observed_time`, `predicted_time`, and
-#' `differentiation_score` regardless of the input metadata column names.
+#' @param expression_matrix Numeric genes-by-samples expression matrix.
+#' @param metadata Data frame containing sample IDs and numeric timepoints.
+#' @param temporal_genes Character vector of temporal-gene IDs.
+#' @param sample_id_col Metadata column containing unique sample IDs.
+#' @param time_col Metadata column containing finite numeric timepoints.
+#' @param reference_col Optional metadata column identifying reference samples.
+#' @param reference_values Values in `reference_col` that define the reference.
+#' @param n_pcs Number of centered, unscaled PCA dimensions used for projection.
+#'
+#' @return A list containing `scores`, `pca_coordinates`, `pca_fit`,
+#'   `centroid_polyline`, retained `temporal_genes`, and `reference_time_range`.
+#'   The score table uses stable output names regardless of input column names.
 #'
 #' The function has no persistence, console, random-state, or working-directory
 #' side effects.
@@ -95,8 +103,9 @@ score_differentiation_timing <- function(
   metadata <- metadata[metadata_rows, , drop = FALSE]
   metadata[[sample_id_col]] <- metadata_sample_ids[metadata_rows]
 
-  if (!is.numeric(metadata[[time_col]])) {
-    stop('time_col must be numeric.', call. = FALSE)
+  sample_times <- metadata[[time_col]]
+  if (!is.numeric(sample_times) || anyNA(sample_times) || any(!is.finite(sample_times))) {
+    stop('time_col must contain finite numeric values.', call. = FALSE)
   }
   if (!is.character(temporal_genes)) {
     stop('temporal_genes must be a character vector of gene IDs.', call. = FALSE)
@@ -127,10 +136,7 @@ score_differentiation_timing <- function(
   if (sum(reference_idx) < 3L) {
     stop('At least three reference samples are required.', call. = FALSE)
   }
-  reference_times <- metadata[[time_col]][reference_idx]
-  if (anyNA(reference_times) || any(!is.finite(reference_times))) {
-    stop('Reference timepoints must be finite and complete.', call. = FALSE)
-  }
+  reference_times <- sample_times[reference_idx]
   reference_timepoints <- sort(unique(reference_times))
   if (length(reference_timepoints) < 2L) {
     stop('Reference samples must span at least two timepoints.', call. = FALSE)

@@ -3,7 +3,7 @@
 # - Zoheb Khan
 #
 # script path:
-# - scripts/02_run_leave_one_line_out_validation.R
+# - scripts/02_run_leave_one_cell_line_out_validation.R
 #
 # functions:
 # - functions/load_GSE122380_data.R
@@ -19,10 +19,10 @@
 # - data/GSE122380_vst.rds
 #
 # outputs:
-# - tmp/GSE122380_leave_one_line_out_validation.rds
+# - tmp/GSE122380_leave_one_cell_line_out_validation.rds
 # ----
 
-# 0.0 source packages and dependencies -----------------
+# 0.0 validate dependencies and source functions -----------------
 
 required_packages <- c('DESeq2', 'edgeR', 'yaml')
 missing_packages <- required_packages[
@@ -48,12 +48,12 @@ analysis_params <- yaml::read_yaml('config/analysis.yml')
 
 # 1.1 define script parameters and paths -----------------
 
-expression_cpm_cutoff <- analysis_params$temporal_gene_selection$expression_cpm_cutoff
-lrt_padj_cutoff <- analysis_params$temporal_gene_selection$lrt_padj_cutoff
-vst_dynamic_range_cutoff <- analysis_params$temporal_gene_selection$vst_dynamic_range_cutoff
-n_pcs <- analysis_params$timing_score$n_pcs
+expression_cpm_cutoff = analysis_params$temporal_gene_selection$expression_cpm_cutoff
+lrt_padj_cutoff = analysis_params$temporal_gene_selection$lrt_padj_cutoff
+vst_dynamic_range_cutoff = analysis_params$temporal_gene_selection$vst_dynamic_range_cutoff
+n_pcs = analysis_params$timing_score$n_pcs
 
-validation_cache_path <- 'tmp/GSE122380_leave_one_line_out_validation.rds'
+validation_cache_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
 
 # 1.2 read direct inputs -----------------
 
@@ -63,10 +63,10 @@ counts <- GSE122380_data$counts
 vst <- GSE122380_data$vst
 
 ordered_days <- sort(unique(metadata$day_numeric))
-selected_cell_lines <- sort(unique(as.character(metadata$cell_line)))
+heldout_cell_lines <- sort(unique(as.character(metadata$cell_line)))
 
 cache_source_paths <- c(
-  'scripts/02_run_leave_one_line_out_validation.R',
+  'scripts/02_run_leave_one_cell_line_out_validation.R',
   'functions/load_GSE122380_data.R',
   'functions/select_temporal_genes.R',
   'functions/score_differentiation_timing.R',
@@ -83,7 +83,7 @@ validation_cache_key <- list(
   lrt_padj_cutoff = lrt_padj_cutoff,
   vst_dynamic_range_cutoff = vst_dynamic_range_cutoff,
   n_pcs = n_pcs,
-  heldout_lines = selected_cell_lines
+  heldout_cell_lines = heldout_cell_lines
 )
 
 # 1.3 define local helpers -----------------
@@ -106,15 +106,15 @@ write_validation_cache <- function(results) {
 
   summary_table <- do.call(rbind, lapply(results, function(result) {
     summary <- result$pca_summary
-    summary$heldout_line <- result$heldout_line
-    summary$temporal_genes <- length(result$temporal_genes)
+    summary$heldout_cell_line <- result$heldout_cell_line
+    summary$n_temporal_genes <- length(result$temporal_genes)
     summary[
       ,
       c(
-        'heldout_line',
+        'heldout_cell_line',
         'gene_set',
         'gene_count',
-        'temporal_genes',
+        'n_temporal_genes',
         'pc1_percent',
         'pc2_percent',
         'pc3_percent'
@@ -128,23 +128,16 @@ write_validation_cache <- function(results) {
     scores = score_table,
     summary = summary_table,
     results = results,
-    selected_cell_lines = names(results),
-    cache_key = validation_cache_key,
-    notes = list(
-      validation_scope = paste(
-        'Cell-line cross-validation refits temporal selection, PCA, and the',
-        'polyline within the processed GSE122380 cohort; the tracked VST',
-        'matrix is shared across folds.'
-      ),
-      gene_set_split = paste(
-        'Maturation and progenitor genes have positive and negative',
-        'training-set Spearman correlations with day, respectively.'
-      )
-    )
+    cache_key = validation_cache_key
   )
 
   dir.create(dirname(validation_cache_path), recursive = TRUE, showWarnings = FALSE)
-  saveRDS(validation_cache, validation_cache_path)
+  temporary_cache_path <- paste0(validation_cache_path, '.tmp')
+  saveRDS(validation_cache, temporary_cache_path)
+  if (!file.rename(temporary_cache_path, validation_cache_path)) {
+    unlink(temporary_cache_path)
+    stop('Could not atomically update the validation cache.', call. = FALSE)
+  }
   validation_cache
 }
 
@@ -175,7 +168,7 @@ split_temporal_genes <- function(temporal_genes, training_metadata) {
 score_gene_set <- function(
   gene_ids,
   gene_set_name,
-  heldout_line,
+  heldout_cell_line,
   training_metadata) {
   scoring_metadata <- metadata
   scoring_metadata$is_training <- scoring_metadata$sample_id %in%
@@ -192,20 +185,13 @@ score_gene_set <- function(
     n_pcs = n_pcs
   )
   heldout_scores <- timing_fit$scores[!timing_fit$scores$is_reference, , drop = FALSE]
-  heldout_scores <- heldout_scores[
-    heldout_scores$sample_id %in% metadata$sample_id[metadata$cell_line == heldout_line],
-    ,
-    drop = FALSE
-  ]
   pca_variance <- summary(timing_fit$pca_fit)$importance[2, seq_len(n_pcs)] * 100
 
   score_table <- data.frame(
-    heldout_line = heldout_line,
+    heldout_cell_line = heldout_cell_line,
     sample_id = heldout_scores$sample_id,
-    cell_line = heldout_line,
     actual_day = heldout_scores$observed_time,
     gene_set = gene_set_name,
-    method = 'Polyline',
     predicted_day = heldout_scores$predicted_time,
     residual = heldout_scores$predicted_time - heldout_scores$observed_time,
     stringsAsFactors = FALSE
@@ -219,9 +205,13 @@ score_gene_set <- function(
   )
 }
 
-analyze_heldout_line <- function(heldout_line) {
-  message('Analyzing held-out line: ', heldout_line)
-  training_metadata <- metadata[metadata$cell_line != heldout_line, , drop = FALSE]
+analyze_heldout_cell_line <- function(heldout_cell_line) {
+  message('Analyzing held-out cell line: ', heldout_cell_line)
+  training_metadata <- metadata[
+    metadata$cell_line != heldout_cell_line,
+    ,
+    drop = FALSE
+  ]
   training_metadata$cell_line <- droplevels(training_metadata$cell_line)
   training_sample_ids <- training_metadata$sample_id
 
@@ -239,7 +229,7 @@ analyze_heldout_line <- function(heldout_line) {
   )
   if (any(vapply(gene_sets, length, integer(1)) < 2L)) {
     stop(
-      'Held-out line ', heldout_line,
+      'Held-out cell line ', heldout_cell_line,
       ' produced a temporal gene subset with fewer than two genes.',
       call. = FALSE
     )
@@ -250,7 +240,7 @@ analyze_heldout_line <- function(heldout_line) {
     gene_sets,
     names(gene_sets),
     MoreArgs = list(
-      heldout_line = heldout_line,
+      heldout_cell_line = heldout_cell_line,
       training_metadata = training_metadata
     )
   )
@@ -269,7 +259,7 @@ analyze_heldout_line <- function(heldout_line) {
   }))
 
   list(
-    heldout_line = heldout_line,
+    heldout_cell_line = heldout_cell_line,
     temporal_genes = temporal_selection$temporal_genes,
     temporal_selection_summary = temporal_selection$summary,
     gene_sets = gene_sets,
@@ -287,20 +277,22 @@ if (is.null(validation_cache)) {
   validation_results <- validation_cache$results
 }
 
-for (heldout_line in selected_cell_lines) {
-  if (!is.null(validation_results[[heldout_line]])) {
-    message('Using cached result for held-out line: ', heldout_line)
+for (heldout_cell_line in heldout_cell_lines) {
+  if (!is.null(validation_results[[heldout_cell_line]])) {
+    message('Using cached result for held-out cell line: ', heldout_cell_line)
     next
   }
 
-  validation_results[[heldout_line]] <- analyze_heldout_line(heldout_line)
+  validation_results[[heldout_cell_line]] <- analyze_heldout_cell_line(
+    heldout_cell_line
+  )
   validation_results <- validation_results[
-    selected_cell_lines[selected_cell_lines %in% names(validation_results)]
+    heldout_cell_lines[heldout_cell_lines %in% names(validation_results)]
   ]
-  validation_cache <- write_validation_cache(validation_results)
+  write_validation_cache(validation_results)
 }
 
-validation_results <- validation_results[selected_cell_lines]
+validation_results <- validation_results[heldout_cell_lines]
 validation_cache <- write_validation_cache(validation_results)
 
 # 3.0 report summary -----------------

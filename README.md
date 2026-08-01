@@ -70,11 +70,11 @@ BiocManager::install(c(
 From the repository root, run the held-out validation first, then render:
 
 ```bash
-Rscript scripts/02_run_leave_one_line_out_validation.R
+Rscript scripts/02_run_leave_one_cell_line_out_validation.R
 Rscript scripts/03_render_tutorial_site.R
 ```
 
-The validation script checkpoints its current fold results in `tmp/`. Its cache key includes input, implementation, parameter, package-version, and held-out-line identity. The render refuses to use a missing or stale cache. Rendering sources `scripts/01_build_tutorial_objects.R`, refreshes all ten figure pairs, and writes `docs/index.html`.
+The validation script checkpoints completed folds in `tmp/`. Its cache key includes input, implementation, parameter, package-version, and held-out-cell-line identity. The render refuses a missing or stale cache, rebuilds the tutorial objects and all ten figure pairs, and writes `docs/index.html`.
 
 Run the fast standalone-scorer checks independently with:
 

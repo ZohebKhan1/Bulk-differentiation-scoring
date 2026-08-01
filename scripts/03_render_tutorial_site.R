@@ -13,7 +13,7 @@
 # - tutorial/after-body.html
 # - tutorial/assets/fonts/*.otf
 # - scripts/01_build_tutorial_objects.R
-# - tmp/GSE122380_leave_one_line_out_validation.rds
+# - tmp/GSE122380_leave_one_cell_line_out_validation.rds
 #
 # outputs:
 # - docs/index.html
@@ -32,6 +32,21 @@ if (!requireNamespace('bookdown', quietly = TRUE)) {
   stop('The bookdown package is required to render the tutorial.', call. = FALSE)
 }
 
+source_font_dir = 'tutorial/assets/fonts'
+source_fonts <- file.path(
+  source_font_dir,
+  c(
+    'LatinModernSans-Bold.otf',
+    'LatinModernSans-BoldOblique.otf',
+    'LatinModernSans-Oblique.otf',
+    'LatinModernSans-Regular.otf',
+    'NimbusSans-Bold.otf',
+    'NimbusSans-BoldItalic.otf',
+    'NimbusSans-Italic.otf',
+    'NimbusSans-Regular.otf'
+  )
+)
+
 required_inputs <- c(
   'tutorial/tutorial.Rmd',
   'tutorial/_bookdown.yml',
@@ -39,34 +54,32 @@ required_inputs <- c(
   'tutorial/style.css',
   'tutorial/after-body.html',
   'scripts/01_build_tutorial_objects.R',
-  'tmp/GSE122380_leave_one_line_out_validation.rds'
+  'tmp/GSE122380_leave_one_cell_line_out_validation.rds',
+  source_fonts
 )
 missing_inputs <- required_inputs[!file.exists(required_inputs)]
 if (length(missing_inputs) > 0L) {
   stop(
     'Missing required render inputs: ',
     paste(missing_inputs, collapse = ', '),
-    '. Run scripts/02_run_leave_one_line_out_validation.R before rendering.',
+    '. Run scripts/02_run_leave_one_cell_line_out_validation.R before rendering.',
     call. = FALSE
   )
 }
 
-source_font_dir <- 'tutorial/assets/fonts'
-source_fonts <- list.files(
-  source_font_dir,
-  pattern = '\\.otf$',
-  full.names = TRUE
-)
-if (length(source_fonts) != 8L) {
-  stop('Expected exactly eight maintained tutorial font files.', call. = FALSE)
-}
+# 1.0 build tutorial objects and render the single source -----------------
 
-# 1.0 render the single tutorial source directly to docs -----------------
+tutorial_environment <- new.env(parent = baseenv())
+source(
+  'scripts/01_build_tutorial_objects.R',
+  local = tutorial_environment
+)
 
 bookdown::render_book(
   input = 'tutorial',
   output_format = 'bookdown::gitbook',
-  clean = TRUE
+  clean = TRUE,
+  envir = tutorial_environment
 )
 
 required_site_outputs <- c(

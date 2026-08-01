@@ -11,6 +11,18 @@
 
 source('functions/score_differentiation_timing.R')
 
+expect_error_matching <- function(code, pattern) {
+  tryCatch(
+    {
+      force(code)
+      FALSE
+    },
+    error = function(error_condition) {
+      grepl(pattern, conditionMessage(error_condition), fixed = TRUE)
+    }
+  )
+}
+
 expression_matrix <- rbind(
   gene_1 = c(0, 0.2, 1.0, 1.2, 2.0, 2.2),
   gene_2 = c(2.3, 2.1, 1.3, 1.1, 0.3, 0.1),
@@ -66,18 +78,30 @@ stopifnot(
 )
 
 invalid_metadata <- rbind(metadata, metadata[1, , drop = FALSE])
-duplicate_error <- tryCatch(
-  {
+stopifnot(
+  expect_error_matching(
     score_differentiation_timing(
-      expression_matrix,
-      invalid_metadata,
-      rownames(expression_matrix),
+      expression_matrix = expression_matrix,
+      metadata = invalid_metadata,
+      temporal_genes = rownames(expression_matrix),
       time_col = 'day'
-    )
-    FALSE
-  },
-  error = function(error) grepl('unique', conditionMessage(error), fixed = TRUE)
+    ),
+    'unique'
+  )
 )
-stopifnot(duplicate_error)
+
+nonfinite_metadata <- metadata
+nonfinite_metadata$day[nonfinite_metadata$cohort == 'test'] <- Inf
+stopifnot(
+  expect_error_matching(
+    score_differentiation_timing(
+      expression_matrix = expression_matrix,
+      metadata = nonfinite_metadata,
+      temporal_genes = rownames(expression_matrix),
+      time_col = 'day'
+    ),
+    'finite numeric'
+  )
+)
 
 message('Standalone scorer contract checks passed.')

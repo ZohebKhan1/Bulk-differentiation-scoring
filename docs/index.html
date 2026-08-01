@@ -144,7 +144,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="1.1" data-path=""><a href="#reuse-the-scorer"><i class="fa fa-check"></i><b>1.1</b> Reuse the scorer</a></li>
 </ul></li>
 <li class="chapter" data-level="2" data-path=""><a href="#data-and-scope"><i class="fa fa-check"></i><b>2</b> Data and scope</a></li>
-<li class="chapter" data-level="3" data-path=""><a href="#method"><i class="fa fa-check"></i><b>3</b> Method</a>
+<li class="chapter" data-level="3" data-path=""><a href="#scoring-workflow"><i class="fa fa-check"></i><b>3</b> Scoring workflow</a>
 <ul>
 <li class="chapter" data-level="3.1" data-path=""><a href="#select-temporal-genes"><i class="fa fa-check"></i><b>3.1</b> Select temporal genes</a></li>
 <li class="chapter" data-level="3.2" data-path=""><a href="#train-the-pca-reference-space"><i class="fa fa-check"></i><b>3.2</b> Train the PCA reference space</a></li>
@@ -416,8 +416,8 @@ Cell lines
 <strong>Figure 1.</strong> Experimental structure of the GSE122380 time course. <strong>a.</strong> PCA using the top 10% most variable VST genes, colored by differentiation day. <strong>b.</strong> Pearson correlation between day-mean profiles from the same variable-gene set.
 </div>
 </div>
-<div id="method" class="section level1 hasAnchor" number="3">
-<h1><span class="header-section-number">3</span> Method<a href="#method" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div id="scoring-workflow" class="section level1 hasAnchor" number="3">
+<h1><span class="header-section-number">3</span> Scoring workflow<a href="#scoring-workflow" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <div id="select-temporal-genes" class="section level2 hasAnchor" number="3.1">
 <h2><span class="header-section-number">3.1</span> Select temporal genes<a href="#select-temporal-genes" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Genes must pass three sequential filters. First, a gene’s maximum day-mean TMM-normalized CPM must be at least 10. Second, a DESeq2 likelihood-ratio test (LRT) must have a Benjamini-Hochberg adjusted p-value below <span class="math inline">\(10^{-7}\)</span>. Third, the range of day-mean VST expression must be at least 0.6.</p>
@@ -436,15 +436,18 @@ Cell lines
 <p>where <span class="math inline">\(\ell\)</span> is the maximized model log likelihood. This tests whether categorical day improves fit after accounting for cell-line structure; it does not assume a linear expression trend.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/select_temporal_genes.R&#39;</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="at">counts =</span> counts,</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="at">vst =</span> vst,</span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">metadata =</span> meta,</span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">expression_cpm_cutoff =</span> <span class="dv">10</span>,</span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">lrt_padj_cutoff =</span> <span class="fl">1e-7</span>,</span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">vst_dynamic_range_cutoff =</span> <span class="fl">0.6</span></span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>)</span>
-<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>analysis_params <span class="ot">&lt;-</span> yaml<span class="sc">::</span><span class="fu">read_yaml</span>(<span class="st">&#39;config/analysis.yml&#39;</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>temporal_gene_params <span class="ot">&lt;-</span> analysis_params<span class="sc">$</span>temporal_gene_selection</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">counts =</span> counts,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">vst =</span> vst,</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="at">expression_cpm_cutoff =</span> temporal_gene_params<span class="sc">$</span>expression_cpm_cutoff,</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="at">lrt_padj_cutoff =</span> temporal_gene_params<span class="sc">$</span>lrt_padj_cutoff,</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  <span class="at">vst_dynamic_range_cutoff =</span> temporal_gene_params<span class="sc">$</span>vst_dynamic_range_cutoff</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>)</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
 <table class="sample-summary-table">
 <caption>
 <span id="tab:lrt-summary-table">Table 3.1: </span>Sequential temporal-gene filtering.
@@ -478,14 +481,6 @@ Genes with maximum day-mean TMM CPM &gt;= 10
 </tr>
 <tr>
 <td style="text-align:left;">
-Genes tested by DESeq2 LRT
-</td>
-<td style="text-align:right;">
-11,411
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
 Genes passing LRT adjusted p-value &lt; 1e-7
 </td>
 <td style="text-align:right;">
@@ -494,15 +489,7 @@ Genes passing LRT adjusted p-value &lt; 1e-7
 </tr>
 <tr>
 <td style="text-align:left;">
-Genes passing day-mean VST range &gt;= 0.6
-</td>
-<td style="text-align:right;">
-8,215
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-Temporal genes used for PCA and scoring
+Genes passing all filters and used for scoring
 </td>
 <td style="text-align:right;">
 8,215
@@ -526,7 +513,7 @@ Interpretive heatmap clusters
 <div class="tutorial-figure-caption">
 <strong>Figure 2.</strong> Z-scored VST expression for the 1,500 displayed temporal genes. Rows are split into four descriptive clusters; columns are ordered by day.
 </div>
-<p>The k=4 partition is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those 1,500 genes as the enrichment universe. These tests are not part of the scoring algorithm.</p>
+<p>The four-cluster partition uses Ward-D2 hierarchical clustering of Euclidean distances between robust-LOESS-smoothed, re-standardized day-mean profiles. It is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those genes as the enrichment universe. These tests are not part of the scoring algorithm.</p>
 <div id="fig-temporal-clusters" class="figure-anchor">
 
 </div>
@@ -597,11 +584,11 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 <span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>timing_fit <span class="ot">&lt;-</span> <span class="fu">score_differentiation_timing</span>(</span>
 <span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">expression_matrix =</span> vst,</span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">metadata =</span> meta,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,</span>
 <span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
 <span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span>,</span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> <span class="dv">3</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> analysis_params<span class="sc">$</span>timing_score<span class="sc">$</span>n_pcs</span>
 <span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>)</span>
 <span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="fu">head</span>(timing_fit<span class="sc">$</span>scores)</span></code></pre></div>
 <div id="fig-timing-polyline" class="figure-anchor">
@@ -623,8 +610,8 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 </div>
 <div id="internal-cell-line-cross-validation" class="section level1 hasAnchor" number="4">
 <h1><span class="header-section-number">4</span> Internal cell-line cross-validation<a href="#internal-cell-line-cross-validation" class="anchor-section" aria-label="Anchor link to header"></a></h1>
-<p>Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate.</p>
-<p>All 13 held-out lines contribute to the summary metrics and aggregate plots. Line <code>19190</code> is omitted only from the per-line panel grid so the display remains a balanced 3-by-4 layout.</p>
+<p>Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out cell line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate.</p>
+<p>Fold-specific temporal genes are also divided into maturation and progenitor sets by the sign of their Spearman correlation with day. The reported accuracy metrics use the complete temporal set. All 13 held-out cell lines contribute; cell line <code>19190</code> is omitted only from the per-cell-line panel grid so the display remains a balanced 3-by-4 layout.</p>
 <table class="sample-summary-table">
 <caption>
 <span id="tab:loo-summary-table">Table 4.1: </span>Leave-one-cell-line-out validation summary.
@@ -706,10 +693,10 @@ Predictions within 2 days
 </tr>
 </tbody>
 </table>
-<div id="fig-loo-line-predictions" class="figure-anchor">
+<div id="fig-loo-cell-line-predictions" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_line_predictions.svg" alt="Predicted versus observed day trajectories for twelve displayed held-out cell lines." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_cell_line_predictions.svg" alt="Predicted versus observed day trajectories for twelve displayed held-out cell lines." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 8.</strong> Held-out predictions for 12 displayed cell lines. Each panel reports Pearson <span class="math inline">\(r\)</span> and its square for that line; neither quantity is a predictive <span class="math inline">\(R^2\)</span> statistic.
 </div>
@@ -735,7 +722,8 @@ e_i=\left|\widehat{t}_i-t_i\right|.
 </div>
 <div id="interpretation-and-adaptation" class="section level1 hasAnchor" number="5">
 <h1><span class="header-section-number">5</span> Interpretation and adaptation<a href="#interpretation-and-adaptation" class="anchor-section" aria-label="Anchor link to header"></a></h1>
-<p>The score estimates position along this reference trajectory. It is not, by itself, a measure of cell quality, differentiation efficiency, lineage identity, potency, or biological directionality. For a new study, temporal genes and all PCA/polyline parameters should be trained on an appropriate reference cohort, while test samples should be projected without refitting the reference model. Gene identifiers, normalization, feature support, batch structure, reference-time coverage, and projection distance require explicit checks before comparing scores across datasets.</p>
+<p>The score estimates position along this reference trajectory. It does not establish cell quality, differentiation efficiency, lineage identity, potency, or biological directionality.</p>
+<p>For a new study, select temporal genes and train the PCA/polyline model in an appropriate reference cohort, then project test samples without refitting that model. Before comparing scores across datasets, verify gene identifiers, normalization, shared feature support, batch structure, reference-time coverage, and projection distance.</p>
 </div>
 <div id="references" class="section level1 hasAnchor" number="6">
 <h1><span class="header-section-number">6</span> References<a href="#references" class="anchor-section" aria-label="Anchor link to header"></a></h1>
@@ -752,7 +740,7 @@ e_i=\left|\widehat{t}_i-t_i\right|.
 ## Running under: macOS Tahoe 26.5.1
 ## 
 ## Matrix products: default
-## BLAS:   /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRblas.0.dylib 
+## BLAS:   /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRblas.0.dylib
 ## LAPACK: /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
 ## 
 ## locale:
@@ -762,87 +750,87 @@ e_i=\left|\widehat{t}_i-t_i\right|.
 ## tzcode source: internal
 ## 
 ## attached base packages:
-## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## [1] stats     graphics  grDevices utils     datasets  methods   base
 ## 
 ## loaded via a namespace (and not attached):
-##   [1] RColorBrewer_1.1-3          rstudioapi_0.19.0          
-##   [3] jsonlite_2.0.0              shape_1.4.6.1              
-##   [5] tidydr_0.0.6                magrittr_2.0.5             
-##   [7] magick_2.9.1                ggtangle_0.1.2             
-##   [9] farver_2.1.2                rmarkdown_2.31             
-##  [11] ragg_1.5.2                  GlobalOptions_0.1.4        
-##  [13] fs_2.1.0                    vctrs_0.7.3                
-##  [15] Cairo_1.7-0                 memoise_2.0.1              
-##  [17] ggtree_4.2.0                S4Arrays_1.12.0            
-##  [19] htmltools_0.5.9             SparseArray_1.12.2         
-##  [21] gridGraphics_0.5-1          sass_0.4.10                
-##  [23] bslib_0.11.0                htmlwidgets_1.6.4          
-##  [25] plyr_1.8.9                  httr2_1.3.0                
-##  [27] cachem_1.1.0                igraph_2.3.3               
-##  [29] lifecycle_1.0.5             iterators_1.0.14           
-##  [31] pkgconfig_2.0.3             Matrix_1.7-5               
-##  [33] R6_2.6.1                    fastmap_1.2.0              
-##  [35] gson_0.2.0                  MatrixGenerics_1.24.0      
-##  [37] clue_0.3-68                 digest_0.6.39              
-##  [39] aplot_0.3.1                 enrichplot_1.32.0          
-##  [41] colorspace_2.1-3            ggnewscale_0.5.2           
-##  [43] patchwork_1.3.2             AnnotationDbi_1.74.0       
-##  [45] S4Vectors_0.50.1            aisdk_1.4.12               
-##  [47] DESeq2_1.52.0               textshaping_1.0.5          
-##  [49] GenomicRanges_1.64.0        RSQLite_3.53.3             
-##  [51] org.Hs.eg.db_3.23.1         labeling_0.4.3             
-##  [53] mgcv_1.9-4                  abind_1.4-8                
-##  [55] httr_1.4.8                  polyclip_1.10-7            
-##  [57] compiler_4.6.1              bit64_4.8.2                
-##  [59] fontquiver_0.2.1            withr_3.0.3                
-##  [61] doParallel_1.0.17           S7_0.2.2                   
-##  [63] BiocParallel_1.46.0         viridis_0.6.5              
-##  [65] DBI_1.3.0                   ggforce_0.5.0              
-##  [67] R.utils_2.13.0              MASS_7.3-65                
-##  [69] DelayedArray_0.38.2         rappdirs_0.3.4             
-##  [71] rjson_0.2.23                tools_4.6.1                
-##  [73] otel_0.2.0                  ape_5.8-1                  
-##  [75] scatterpie_0.2.6            R.oo_1.27.1                
-##  [77] glue_1.8.1                  callr_3.8.0                
-##  [79] nlme_3.1-169                R.cache_0.17.0             
-##  [81] GOSemSim_2.38.3             grid_4.6.1                 
-##  [83] cluster_2.1.8.2             reshape2_1.4.5             
-##  [85] generics_0.1.4              gtable_0.3.6               
-##  [87] R.methodsS3_1.8.2           tidyr_1.3.2                
-##  [89] XVector_0.52.0              BiocGenerics_0.58.1        
-##  [91] ggrepel_0.9.8               foreach_1.5.2              
-##  [93] pillar_1.11.1               stringr_1.6.0              
-##  [95] limma_3.68.4                yulab.utils_0.2.4          
-##  [97] circlize_0.4.18             splines_4.6.1              
-##  [99] dplyr_1.2.1                 tweenr_2.0.3               
-## [101] treeio_1.36.1               lattice_0.22-9             
-## [103] bit_4.6.0                   tidyselect_1.2.1           
-## [105] locfit_1.5-9.12             fontLiberation_0.1.0       
-## [107] GO.db_3.23.1                ComplexHeatmap_2.28.0      
-## [109] Biostrings_2.80.1           knitr_1.51                 
-## [111] gridExtra_2.3.1             fontBitstreamVera_0.1.1    
-## [113] bookdown_0.47               IRanges_2.46.0             
-## [115] Seqinfo_1.2.0               edgeR_4.10.1               
-## [117] SummarizedExperiment_1.42.0 svglite_2.2.2              
-## [119] stats4_4.6.1                xfun_0.60                  
-## [121] Biobase_2.72.0              statmod_1.5.2              
-## [123] matrixStats_1.5.0           stringi_1.8.7              
-## [125] lazyeval_0.2.3              ggfun_0.2.1                
-## [127] yaml_2.3.12                 evaluate_1.0.5             
-## [129] codetools_0.2-20            gdtools_0.5.1              
-## [131] tibble_3.3.1                qvalue_2.44.0              
-## [133] BiocManager_1.30.27         ggplotify_0.1.3            
-## [135] cli_3.6.6                   systemfonts_1.3.2          
-## [137] processx_3.9.0              jquerylib_0.1.4            
-## [139] styler_1.11.0               dichromat_2.0-0.1          
-## [141] Rcpp_1.1.2                  png_0.1-9                  
-## [143] parallel_4.6.1              ggplot2_4.0.3              
-## [145] blob_1.3.0                  clusterProfiler_4.20.0     
-## [147] DOSE_4.6.0                  viridisLite_0.4.3          
-## [149] tidytree_0.4.8              ggiraph_0.9.6              
-## [151] enrichit_0.2.0              scales_1.4.0               
-## [153] purrr_1.2.2                 crayon_1.5.3               
-## [155] GetoptLong_1.1.1            rlang_1.3.0                
+##   [1] RColorBrewer_1.1-3          rstudioapi_0.19.0
+##   [3] jsonlite_2.0.0              shape_1.4.6.1
+##   [5] tidydr_0.0.6                magrittr_2.0.5
+##   [7] magick_2.9.1                ggtangle_0.1.2
+##   [9] rmarkdown_2.31              farver_2.1.2
+##  [11] ragg_1.5.2                  GlobalOptions_0.1.4
+##  [13] fs_2.1.0                    vctrs_0.7.3
+##  [15] Cairo_1.7-0                 memoise_2.0.1
+##  [17] ggtree_4.2.0                htmltools_0.5.9
+##  [19] S4Arrays_1.12.0             SparseArray_1.12.2
+##  [21] gridGraphics_0.5-1          sass_0.4.10
+##  [23] bslib_0.11.0                htmlwidgets_1.6.4
+##  [25] plyr_1.8.9                  httr2_1.3.0
+##  [27] cachem_1.1.0                igraph_2.3.3
+##  [29] lifecycle_1.0.5             iterators_1.0.14
+##  [31] pkgconfig_2.0.3             gson_0.2.0
+##  [33] Matrix_1.7-5                R6_2.6.1
+##  [35] fastmap_1.2.0               MatrixGenerics_1.24.0
+##  [37] clue_0.3-68                 digest_0.6.39
+##  [39] aplot_0.3.1                 enrichplot_1.32.0
+##  [41] colorspace_2.1-3            ggnewscale_0.5.2
+##  [43] patchwork_1.3.2             AnnotationDbi_1.74.0
+##  [45] S4Vectors_0.50.1            aisdk_1.4.12
+##  [47] DESeq2_1.52.0               textshaping_1.0.5
+##  [49] GenomicRanges_1.64.0        RSQLite_3.53.3
+##  [51] org.Hs.eg.db_3.23.1         labeling_0.4.3
+##  [53] mgcv_1.9-4                  polyclip_1.10-7
+##  [55] httr_1.4.8                  abind_1.4-8
+##  [57] compiler_4.6.1              withr_3.0.3
+##  [59] bit64_4.8.2                 fontquiver_0.2.1
+##  [61] doParallel_1.0.17           S7_0.2.2
+##  [63] BiocParallel_1.46.0         viridis_0.6.5
+##  [65] DBI_1.3.0                   ggforce_0.5.0
+##  [67] R.utils_2.13.0              MASS_7.3-65
+##  [69] rappdirs_0.3.4              DelayedArray_0.38.2
+##  [71] rjson_0.2.23                tools_4.6.1
+##  [73] otel_0.2.0                  ape_5.8-1
+##  [75] scatterpie_0.2.6            R.oo_1.27.1
+##  [77] glue_1.8.1                  callr_3.8.0
+##  [79] nlme_3.1-169                R.cache_0.17.0
+##  [81] GOSemSim_2.38.3             grid_4.6.1
+##  [83] cluster_2.1.8.2             reshape2_1.4.5
+##  [85] generics_0.1.4              gtable_0.3.6
+##  [87] R.methodsS3_1.8.2           tidyr_1.3.2
+##  [89] XVector_0.52.0              BiocGenerics_0.58.1
+##  [91] ggrepel_0.9.8               foreach_1.5.2
+##  [93] pillar_1.11.1               stringr_1.6.0
+##  [95] limma_3.68.4                yulab.utils_0.2.4
+##  [97] splines_4.6.1               circlize_0.4.18
+##  [99] tweenr_2.0.3                dplyr_1.2.1
+## [101] treeio_1.36.1               lattice_0.22-9
+## [103] bit_4.6.0                   tidyselect_1.2.1
+## [105] fontLiberation_0.1.0        GO.db_3.23.1
+## [107] ComplexHeatmap_2.28.0       locfit_1.5-9.12
+## [109] Biostrings_2.80.1           knitr_1.51
+## [111] gridExtra_2.3.1             fontBitstreamVera_0.1.1
+## [113] bookdown_0.47               IRanges_2.46.0
+## [115] Seqinfo_1.2.0               edgeR_4.10.1
+## [117] SummarizedExperiment_1.42.0 svglite_2.2.2
+## [119] stats4_4.6.1                xfun_0.60
+## [121] Biobase_2.72.0              statmod_1.5.2
+## [123] matrixStats_1.5.0           stringi_1.8.7
+## [125] lazyeval_0.2.3              ggfun_0.2.1
+## [127] yaml_2.3.12                 evaluate_1.0.5
+## [129] codetools_0.2-20            qvalue_2.44.0
+## [131] gdtools_0.5.1               tibble_3.3.1
+## [133] BiocManager_1.30.27         ggplotify_0.1.3
+## [135] cli_3.6.6                   systemfonts_1.3.2
+## [137] jquerylib_0.1.4             processx_3.9.0
+## [139] styler_1.11.0               dichromat_2.0-0.1
+## [141] Rcpp_1.1.2                  png_0.1-9
+## [143] parallel_4.6.1              ggplot2_4.0.3
+## [145] blob_1.3.0                  clusterProfiler_4.20.0
+## [147] DOSE_4.6.0                  viridisLite_0.4.3
+## [149] tidytree_0.4.8              ggiraph_0.9.6
+## [151] enrichit_0.2.0              scales_1.4.0
+## [153] purrr_1.2.2                 crayon_1.5.3
+## [155] GetoptLong_1.1.1            rlang_1.3.0
 ## [157] KEGGREST_1.52.2</code></pre>
 
 </div>
