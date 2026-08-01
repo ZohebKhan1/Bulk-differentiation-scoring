@@ -1,40 +1,44 @@
-# Created:
-# 2026-05-25
+# ----
+# author:
+# - Zoheb Khan
 #
-# Inputs:
-# - data/GSE122380_metadata.rds: QC-filtered GSE122380 sample metadata
-# - data/GSE122380_counts.rds: filtered raw count matrix
-# - data/GSE122380_vst.rds: VST expression matrix aligned to metadata
+# script path:
+# - scripts/01_build_tutorial_objects.R
 #
-# Outputs:
-# - R objects used by report/tutorial.Rmd to render report/index.html
-# - results/GSE122380_temporal_cluster_go_k4.rds: cached GO enrichment for
-#   k=4 temporal-cluster sanity-check plots
-# - report/assets/figures/GSE122380_reference_pca_and_day_correlation.{png,svg}
-# - report/assets/figures/GSE122380_temporal_heatmap.{png,svg}
-# - report/assets/figures/GSE122380_temporal_clusters.{png,svg}
-# - report/assets/figures/GSE122380_pca_day.{png,svg}
-# - report/assets/figures/GSE122380_pc1_validation.{png,svg}
-# - report/assets/figures/GSE122380_timing_polyline.{png,svg}
-# - report/assets/figures/GSE122380_score_by_day.{png,svg}
-# - report/assets/figures/GSE122380_loo_line_predictions.{png,svg}
-# - report/assets/figures/GSE122380_loo_summary.{png,svg}
+# functions:
+# - functions/load_GSE122380_data.R
+# - functions/select_temporal_genes.R
+# - functions/score_differentiation_timing.R
 #
-# Purpose:
-# Build the differentiation timing score tutorial figures and summary tables
-# from the active QC-processed GSE122380 inputs.
+# params:
+# - config/analysis.yml
 #
-# Notes:
-# This script is sourced by report/tutorial.Rmd and can also be run directly for
-# validation. It writes only the cluster GO enrichment cache used to avoid
-# rerunning cluster-level enrichment on every report render.
+# input data:
+# - data/GSE122380_metadata.rds
+# - data/GSE122380_counts.rds
+# - data/GSE122380_vst.rds
+# - tmp/GSE122380_leave_one_line_out_validation.rds
+#
+# outputs:
+# - tmp/GSE122380_temporal_cluster_go_k4.rds
+# - docs/assets/figures/GSE122380_reference_pca_and_day_correlation.{png,svg}
+# - docs/assets/figures/GSE122380_temporal_heatmap.{png,svg}
+# - docs/assets/figures/GSE122380_temporal_clusters.{png,svg}
+# - docs/assets/figures/GSE122380_pca_day.{png,svg}
+# - docs/assets/figures/GSE122380_pc1_validation.{png,svg}
+# - docs/assets/figures/GSE122380_timing_polyline.{png,svg}
+# - docs/assets/figures/GSE122380_score_by_day.{png,svg}
+# - docs/assets/figures/GSE122380_loo_line_predictions.{png,svg}
+# - docs/assets/figures/GSE122380_loo_summary.{png,svg}
+# - docs/assets/figures/GSE122380_loo_timepoint_accuracy.{png,svg}
+# ----
 
-# 0.0 define local helpers -----------------
+# 0.0 source packages and dependencies -----------------
 
 required_packages <- base::c(
   'DESeq2',
   'ComplexHeatmap',
-  'base64enc',
+  'AnnotationDbi',
   'circlize',
   'clusterProfiler',
   'edgeR',
@@ -42,58 +46,63 @@ required_packages <- base::c(
   'ggplot2',
   'org.Hs.eg.db',
   'patchwork',
+  'ragg',
   'scales',
   'svglite',
-  'viridis'
+  'systemfonts',
+  'viridis',
+  'yaml'
 )
 missing_packages <- required_packages[
-  !base::vapply(
+  !vapply(
     required_packages,
-    base::requireNamespace,
-    base::logical(1),
+    requireNamespace,
+    logical(1),
     quietly = TRUE
   )
 ]
-if (base::length(missing_packages) > 0L) {
-  base::stop('missing required packages: ', base::paste(missing_packages, collapse = ', '))
+if (length(missing_packages) > 0L) {
+  stop(
+    'Missing required packages: ',
+    paste(missing_packages, collapse = ', '),
+    '.',
+    call. = FALSE
+  )
 }
 
-find_repo_root <- function() {
-  candidates <- base::unique(base::normalizePath(
-    base::c(base::getwd(), base::file.path(base::getwd(), '..'), base::file.path(base::getwd(), '../..')),
-    mustWork = FALSE
-  ))
-  for (candidate in candidates) {
-    if (base::file.exists(base::file.path(candidate, 'data/GSE122380_metadata.rds'))) {
-      return(candidate)
-    }
-  }
-  base::stop('Could not locate repository root containing data/GSE122380_metadata.rds.')
-}
+# source canonical loader, temporal selection, and timing scorer
+source('functions/load_GSE122380_data.R')
+source('functions/select_temporal_genes.R')
+source('functions/score_differentiation_timing.R')
 
-repo_root <- find_repo_root()
-data_dir <- base::file.path(repo_root, 'data')
-metadata_path <- base::file.path(data_dir, 'GSE122380_metadata.rds')
-counts_path <- base::file.path(data_dir, 'GSE122380_counts.rds')
-vst_path <- base::file.path(data_dir, 'GSE122380_vst.rds')
-report_figure_dir <- base::file.path(repo_root, 'report/assets/figures')
-report_font_dir <- base::file.path(repo_root, 'report/assets/fonts')
+# 1.0 read shared parameters -----------------
+
+analysis_params <- yaml::read_yaml('config/analysis.yml')
+
+# 1.1 define script parameters and paths -----------------
+
+expression_cpm_cutoff <- analysis_params$temporal_gene_selection$expression_cpm_cutoff
+lrt_padj_cutoff <- analysis_params$temporal_gene_selection$lrt_padj_cutoff
+vst_dynamic_range_cutoff <- analysis_params$temporal_gene_selection$vst_dynamic_range_cutoff
+n_timing_pcs <- analysis_params$timing_score$n_pcs
+
+docs_figure_dir <- 'docs/assets/figures'
+tutorial_font_dir <- 'tutorial/assets/fonts'
+loo_validation_cache_path <- 'tmp/GSE122380_leave_one_line_out_validation.rds'
+cluster_go_cache_path <- 'tmp/GSE122380_temporal_cluster_go_k4.rds'
 
 figure_dpi <- 600
 figure_scale <- 1
 figure_font_scale <- 1
 figure_geom_scale <- 1
-figure_family <- 'Nimbus Sans'
-panel_tag_family <- 'Nimbus Sans'
-plot_font_family <- figure_family
+figure_family <- 'GSE122380 Nimbus Sans'
+panel_tag_family <- figure_family
+svg_figure_family <- 'Nimbus Sans'
 fs <- function(size) size * figure_font_scale
 fd <- function(size) size * figure_scale
 gs <- function(size) size * figure_geom_scale
 gfs <- function(size) fs(size) / ggplot2::.pt
 
-expression_cpm_cutoff <- 10
-vst_dynamic_range_cutoff <- 0.6
-lrt_padj_cutoff <- 1e-7
 n_heatmap_genes <- 1500L
 n_temporal_clusters <- 4L
 n_pc1_loading_plot_genes_per_direction <- 10L
@@ -109,17 +118,28 @@ go_max_genes_in_go_db <- 499L
 reference_day_palette <- viridis::viridis(15, option = 'D')
 reference_day_palette[[15]] <- '#D8B11E'
 annotation_day_palette <- grDevices::colorRampPalette(reference_day_palette)(256)
-correlation_palette <- base::c(
+correlation_palette <- c(
   '#093F60', '#176086', '#2C83AA', '#56A5B8', '#82B6BB',
   '#AECFC0', '#D5E3BB', '#F6E699', '#FAD171', '#F5B14A',
   '#EA832A', '#D95F24', '#C43C22', '#A92325', '#831026'
 )
 
-ComplexHeatmap::ht_opt(
-  ROW_ANNO_PADDING = grid::unit(0, 'mm'),
-  DENDROGRAM_PADDING = grid::unit(0, 'mm'),
-  TITLE_PADDING = grid::unit(base::c(1, 1), 'pt')
+systemfonts::register_font(
+  name = figure_family,
+  plain = file.path(tutorial_font_dir, 'NimbusSans-Regular.otf'),
+  bold = file.path(tutorial_font_dir, 'NimbusSans-Bold.otf'),
+  italic = file.path(tutorial_font_dir, 'NimbusSans-Italic.otf'),
+  bolditalic = file.path(tutorial_font_dir, 'NimbusSans-BoldItalic.otf')
 )
+
+# 1.2 read direct inputs -----------------
+
+GSE122380_data <- load_GSE122380_data()
+meta <- GSE122380_data$metadata
+counts <- GSE122380_data$counts
+vst <- GSE122380_data$vst
+
+# 1.3 define local helpers -----------------
 
 theme_pub <- function(base_size = fs(7)) {
   ggplot2::theme_classic(base_size = base_size, base_family = figure_family) +
@@ -209,10 +229,11 @@ legend_top_theme <- function() {
 }
 
 save_figure <- function(path, plot, width, height) {
-  base::dir.create(base::dirname(path), recursive = TRUE, showWarnings = FALSE)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   ggplot2::ggsave(
     filename = path,
     plot = plot,
+    device = ragg::agg_png,
     width = width,
     height = height,
     dpi = figure_dpi,
@@ -221,42 +242,26 @@ save_figure <- function(path, plot, width, height) {
   )
 }
 
-inline_svg_font <- function(path, svg_font_url, font_file, font_name) {
-  svg_text <- base::readLines(path, warn = FALSE)
-  encoded_font <- base64enc::base64encode(font_file)
-  font_data_uri <- base::paste0('data:font/otf;base64,', encoded_font)
-  svg_text <- base::gsub(
-    pattern = base::paste0('url\\("', svg_font_url, '"\\) format\\("opentype"\\)'),
-    replacement = base::paste0('url("', font_data_uri, '") format("opentype")'),
-    x = svg_text,
-    fixed = FALSE
-  )
-  if (!base::any(base::grepl(font_data_uri, svg_text, fixed = TRUE))) {
-    base::stop('failed to inline ', font_name, ' in ', path, call. = FALSE)
-  }
-  base::writeLines(svg_text, path, useBytes = TRUE)
-}
-
 svg_font_faces <- function() {
-  base::list(
+  list(
     svglite::font_face(
-      figure_family,
+      svg_figure_family,
       otf = '../fonts/NimbusSans-Regular.otf',
       weight = 400
     ),
     svglite::font_face(
-      figure_family,
+      svg_figure_family,
       otf = '../fonts/NimbusSans-Bold.otf',
       weight = 700
     ),
     svglite::font_face(
-      figure_family,
+      svg_figure_family,
       otf = '../fonts/NimbusSans-Italic.otf',
       style = 'italic',
       weight = 400
     ),
     svglite::font_face(
-      figure_family,
+      svg_figure_family,
       otf = '../fonts/NimbusSans-BoldItalic.otf',
       style = 'italic',
       weight = 700
@@ -264,35 +269,8 @@ svg_font_faces <- function() {
   )
 }
 
-inline_svg_fonts <- function(path) {
-  inline_svg_font(
-    path,
-    '../fonts/NimbusSans-Regular.otf',
-    base::file.path(report_font_dir, 'NimbusSans-Regular.otf'),
-    'Nimbus Sans Regular'
-  )
-  inline_svg_font(
-    path,
-    '../fonts/NimbusSans-Bold.otf',
-    base::file.path(report_font_dir, 'NimbusSans-Bold.otf'),
-    'Nimbus Sans Bold'
-  )
-  inline_svg_font(
-    path,
-    '../fonts/NimbusSans-Italic.otf',
-    base::file.path(report_font_dir, 'NimbusSans-Italic.otf'),
-    'Nimbus Sans Italic'
-  )
-  inline_svg_font(
-    path,
-    '../fonts/NimbusSans-BoldItalic.otf',
-    base::file.path(report_font_dir, 'NimbusSans-BoldItalic.otf'),
-    'Nimbus Sans Bold Italic'
-  )
-}
-
 save_svg <- function(path, plot, width, height) {
-  base::dir.create(base::dirname(path), recursive = TRUE, showWarnings = FALSE)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   ggplot2::ggsave(
     filename = path,
     plot = plot,
@@ -304,20 +282,19 @@ save_svg <- function(path, plot, width, height) {
     bg = 'white',
     limitsize = FALSE
   )
-  inline_svg_fonts(path)
 }
 
-save_report_figure <- function(path_stub, plot, width, height) {
+save_figure_pair <- function(path_stub, plot, width, height) {
   width <- fd(width)
   height <- fd(height)
   save_figure(
-    path = base::paste0(path_stub, '.png'),
+    path = paste0(path_stub, '.png'),
     plot = plot,
     width = width,
     height = height
   )
   save_svg(
-    path = base::paste0(path_stub, '.svg'),
+    path = paste0(path_stub, '.svg'),
     plot = plot,
     width = width,
     height = height
@@ -325,14 +302,14 @@ save_report_figure <- function(path_stub, plot, width, height) {
 }
 
 save_drawn_png <- function(path, draw_fn, width, height) {
-  base::dir.create(base::dirname(path), recursive = TRUE, showWarnings = FALSE)
-  grDevices::png(
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  ragg::agg_png(
     filename = path,
     width = width,
     height = height,
     units = 'in',
     res = figure_dpi,
-    bg = 'white'
+    background = 'white'
   )
   on.exit(grDevices::dev.off(), add = TRUE)
   grid::grid.newpage()
@@ -340,7 +317,7 @@ save_drawn_png <- function(path, draw_fn, width, height) {
 }
 
 save_drawn_svg <- function(path, draw_fn, width, height) {
-  base::dir.create(base::dirname(path), recursive = TRUE, showWarnings = FALSE)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   svglite::svglite(
     file = path,
     width = width,
@@ -354,20 +331,19 @@ save_drawn_svg <- function(path, draw_fn, width, height) {
   draw_fn()
   grDevices::dev.off()
   on.exit(NULL, add = FALSE)
-  inline_svg_fonts(path)
 }
 
-save_drawn_report_figure <- function(path_stub, draw_fn, width, height, png_scale = 1) {
+save_drawn_figure_pair <- function(path_stub, draw_fn, width, height, png_scale = 1) {
   width <- fd(width)
   height <- fd(height)
   save_drawn_png(
-    path = base::paste0(path_stub, '.png'),
+    path = paste0(path_stub, '.png'),
     draw_fn = draw_fn,
     width = width * png_scale,
     height = height * png_scale
   )
   save_drawn_svg(
-    path = base::paste0(path_stub, '.svg'),
+    path = paste0(path_stub, '.svg'),
     draw_fn = draw_fn,
     width = width,
     height = height
@@ -375,26 +351,20 @@ save_drawn_report_figure <- function(path_stub, draw_fn, width, height, png_scal
 }
 
 label_ensembl_genes <- function(gene_ids) {
-  clean_ids <- base::sub('\\..*$', '', gene_ids)
-
-  if (!base::requireNamespace('AnnotationDbi', quietly = TRUE) ||
-    !base::requireNamespace('org.Hs.eg.db', quietly = TRUE)) {
-    return(gene_ids)
-  }
-
-  orgdb <- base::get('org.Hs.eg.db', envir = base::asNamespace('org.Hs.eg.db'))
-  symbols <- AnnotationDbi::mapIds(
-    orgdb,
+  clean_ids <- sub('\\..*$', '', gene_ids)
+  symbol_lists <- AnnotationDbi::mapIds(
+    org.Hs.eg.db::org.Hs.eg.db,
     keys = clean_ids,
     keytype = 'ENSEMBL',
     column = 'SYMBOL',
-    multiVals = 'first'
+    multiVals = 'CharacterList'
   )
 
-  labels <- base::unname(symbols[clean_ids])
-  missing_labels <- base::is.na(labels) | labels == ''
-  labels[missing_labels] <- gene_ids[missing_labels]
-  labels
+  vapply(seq_along(gene_ids), function(gene_index) {
+    symbols <- unique(as.character(symbol_lists[[clean_ids[[gene_index]]]]))
+    symbols <- symbols[!is.na(symbols) & nzchar(symbols)]
+    if (length(symbols) == 1L) symbols else gene_ids[[gene_index]]
+  }, character(1))
 }
 
 orient_pca_fit_by_day <- function(pca_fit, sample_days) {
@@ -422,7 +392,7 @@ get_pca_color_option <- function(set_label) {
 
 format_lm_label <- function(x, y) {
   r_value <- stats::cor(x, y, use = 'pairwise.complete.obs')
-  base::sprintf("r = %.2f\nR\u00b2 = %.2f", r_value, r_value^2)
+  base::sprintf("r = %.2f\nr\u00b2 = %.2f", r_value, r_value^2)
 }
 
 format_go_label <- function(x, width = 34L) {
@@ -431,16 +401,6 @@ format_go_label <- function(x, width = 34L) {
     function(term) base::paste(base::strwrap(term, width = width), collapse = '\n'),
     base::character(1)
   )
-}
-
-parse_gene_ratio <- function(x) {
-  ratio_parts <- base::strsplit(x, '/', fixed = TRUE)
-  base::vapply(ratio_parts, function(parts) {
-    if (base::length(parts) != 2L) {
-      return(NA_real_)
-    }
-    base::as.numeric(parts[[1]]) / base::as.numeric(parts[[2]])
-  }, base::numeric(1))
 }
 
 make_go_count_legend_breaks <- function(counts) {
@@ -500,7 +460,6 @@ run_go_enrichment <- function(gene_ids, universe_gene_ids, set_label) {
 
   go_results$set <- set_label
   go_results$neg_log10_pvalue <- -base::log10(go_results$pvalue)
-  go_results$gene_ratio_numeric <- parse_gene_ratio(go_results$GeneRatio)
   go_results <- go_results[
     base::order(go_results$neg_log10_pvalue, go_results$Count, decreasing = TRUE),
     ,
@@ -600,16 +559,15 @@ make_go_dotplot <- function(go_results, plot_title, point_color, show_count_lege
 
 format_lm_equation_label <- function(x, y) {
   lm_fit <- stats::lm(y ~ x)
-  lm_summary <- base::summary(lm_fit)
   coefs <- stats::coef(lm_fit)
   r_value <- stats::cor(x, y, use = 'pairwise.complete.obs')
   intercept <- coefs[[1]]
   slope <- coefs[[2]]
   sign_text <- if (slope < 0) '-' else '+'
   base::sprintf(
-    "R = %.2f\nR\u00b2 = %.2f\ny = %.2f %s %.2fx",
+    "r = %.2f\nr\u00b2 = %.2f\ny = %.2f %s %.2fx",
     r_value,
-    lm_summary$r.squared,
+    r_value^2,
     intercept,
     sign_text,
     base::abs(slope)
@@ -977,131 +935,26 @@ plot_timepoint_correlation_heatmap <- function(correlation_mat) {
     )
 }
 
-# 1.0 load and validate inputs -----------------
+# 2.0 select temporal genes -----------------
 
-base::message('CODEX_STEP load_data: loading active tutorial inputs')
+message('CODEX_STEP temporal_genes: selecting genes with CPM, LRT, and VST-range filters')
 
-meta <- base::readRDS(metadata_path)
-counts <- base::readRDS(counts_path)
-vst <- base::readRDS(vst_path)
-
-base::stopifnot(!base::anyDuplicated(meta$sample_id))
-base::stopifnot(base::all(meta$sample_id %in% base::colnames(counts)))
-base::stopifnot(base::all(meta$sample_id %in% base::colnames(vst)))
-
-counts <- counts[, meta$sample_id, drop = FALSE]
-vst <- vst[, meta$sample_id, drop = FALSE]
-base::stopifnot(base::identical(base::as.character(meta$sample_id), base::colnames(counts)))
-base::stopifnot(base::identical(base::as.character(meta$sample_id), base::colnames(vst)))
-
-meta$day_factor <- base::factor(
-  meta$day_numeric,
-  levels = base::sort(base::unique(meta$day_numeric))
-)
-meta$cell_line <- base::droplevels(base::factor(meta$cell_line))
+days <- sort(unique(meta$day_numeric))
 sample_days <- stats::setNames(meta$day_numeric, meta$sample_id)
-
-samples_by_day <- base::as.data.frame(base::table(meta$day_numeric), stringsAsFactors = FALSE)
-base::names(samples_by_day) <- base::c('day', 'samples')
-samples_by_day$day <- base::as.integer(base::as.character(samples_by_day$day))
-
-# 2.0 identify temporal genes -----------------
-
-days <- base::sort(base::unique(meta$day_numeric))
-
-mean_tmm_cpm_by_day <- function(count_matrix, metadata_df, day_values) {
-  dge <- edgeR::DGEList(counts = count_matrix)
-  dge <- edgeR::calcNormFactors(dge, method = 'TMM')
-  tmm_cpm <- edgeR::cpm(dge, normalized.lib.sizes = TRUE)
-
-  day_mean_cpm <- base::sapply(day_values, function(day_value) {
-    day_samples <- metadata_df$sample_id[metadata_df$day_numeric == day_value]
-    base::rowMeans(tmm_cpm[, day_samples, drop = FALSE], na.rm = TRUE)
-  })
-  base::colnames(day_mean_cpm) <- base::paste0('D', day_values)
-  day_mean_cpm
-}
-
-mean_vst_by_day <- function(vst_matrix, metadata_df, day_values) {
-  day_mean_vst <- base::sapply(day_values, function(day_value) {
-    day_samples <- metadata_df$sample_id[metadata_df$day_numeric == day_value]
-    base::rowMeans(vst_matrix[, day_samples, drop = FALSE], na.rm = TRUE)
-  })
-  base::colnames(day_mean_vst) <- base::paste0('D', day_values)
-  day_mean_vst
-}
-
-lrt_meta <- meta
-base::rownames(lrt_meta) <- lrt_meta$sample_id
-lrt_meta$day_factor <- base::droplevels(lrt_meta$day_factor)
-lrt_meta$cell_line <- base::droplevels(lrt_meta$cell_line)
-
-base::message('CODEX_STEP lrt: selecting temporal genes with CPM, LRT, and VST-range filters')
-
-day_mean_tmm_cpm <- mean_tmm_cpm_by_day(
-  count_matrix = counts,
-  metadata_df = meta,
-  day_values = days
-)
-max_day_mean_tmm_cpm <- base::apply(day_mean_tmm_cpm, 1, base::max, na.rm = TRUE)
-expression_genes <- base::names(max_day_mean_tmm_cpm)[
-  max_day_mean_tmm_cpm >= expression_cpm_cutoff
-]
-
-dds <- DESeq2::DESeqDataSetFromMatrix(
-  countData = counts[expression_genes, , drop = FALSE],
-  colData = lrt_meta,
-  design = ~ cell_line + day_factor
-)
-
-dds <- DESeq2::DESeq(
-  dds,
-  test = 'LRT',
-  reduced = ~cell_line,
-  quiet = TRUE
-)
-
-lrt_res <- base::as.data.frame(DESeq2::results(dds, alpha = lrt_padj_cutoff))
-lrt_res$gene_id <- base::rownames(lrt_res)
-lrt_res <- lrt_res[
-  base::order(lrt_res$padj, lrt_res$pvalue, na.last = TRUE), ,
-  drop = FALSE
-]
-
-sig_lrt <- lrt_res$gene_id[
-  !base::is.na(lrt_res$padj) & lrt_res$padj < lrt_padj_cutoff
-]
-
-day_mean_vst <- mean_vst_by_day(
-  vst_matrix = vst[sig_lrt, , drop = FALSE],
-  metadata_df = meta,
-  day_values = days
-)
-vst_dynamic_range <- base::apply(day_mean_vst, 1, function(gene_values) {
-  base::max(gene_values, na.rm = TRUE) - base::min(gene_values, na.rm = TRUE)
-})
-dynamic_range_genes <- base::names(vst_dynamic_range)[
-  vst_dynamic_range >= vst_dynamic_range_cutoff
-]
-temporal_genes <- sig_lrt[sig_lrt %in% dynamic_range_genes]
-
-lrt_summary <- base::data.frame(
-  total_expressed_genes = base::nrow(counts),
-  genes_passing_day_mean_tmm_cpm = base::length(expression_genes),
-  genes_tested_by_lrt = base::nrow(lrt_res),
-  genes_passing_lrt_padj = base::length(sig_lrt),
-  genes_passing_vst_dynamic_range = base::length(temporal_genes),
-  lrt_padj_cutoff = lrt_padj_cutoff,
+temporal_selection <- select_temporal_genes(
+  counts = counts,
+  vst = vst,
+  metadata = meta,
   expression_cpm_cutoff = expression_cpm_cutoff,
-  vst_dynamic_range_cutoff = vst_dynamic_range_cutoff,
-  stringsAsFactors = FALSE
+  lrt_padj_cutoff = lrt_padj_cutoff,
+  vst_dynamic_range_cutoff = vst_dynamic_range_cutoff
 )
+temporal_genes <- temporal_selection$temporal_genes
+lrt_summary <- temporal_selection$summary
 
-# 4.0 create temporal heatmap and clusters -----------------
+# 3.0 create temporal heatmap and clusters -----------------
 
-base::message('CODEX_STEP heatmap: clustering temporal gene trajectories')
-
-base::set.seed(42)
+message('CODEX_STEP heatmap: clustering temporal gene trajectories')
 
 heatmap_genes <- utils::head(temporal_genes, base::min(n_heatmap_genes, base::length(temporal_genes)))
 hm_mat <- vst[heatmap_genes, meta$sample_id, drop = FALSE]
@@ -1331,9 +1184,18 @@ make_cluster_trajectory_plot <- function(cluster_name) {
 }
 
 run_cluster_go_enrichment <- function(cluster_assignments, universe_gene_ids, cache_path) {
-  cache_key <- base::list(
+  cache_key <- list(
+    input_md5 = GSE122380_data$input_md5,
+    implementation_md5 = unname(tools::md5sum(c(
+      'scripts/01_build_tutorial_objects.R',
+      'config/analysis.yml'
+    ))),
+    package_versions = c(
+      clusterProfiler = as.character(utils::packageVersion('clusterProfiler')),
+      org.Hs.eg.db = as.character(utils::packageVersion('org.Hs.eg.db'))
+    ),
     cluster_assignments = cluster_assignments,
-    universe_gene_ids = base::sort(base::unique(base::sub('\\..*$', '', universe_gene_ids))),
+    universe_gene_ids = sort(unique(sub('\\..*$', '', universe_gene_ids))),
     go_top_n_terms = go_top_n_terms,
     go_term_padj_cutoff = go_term_padj_cutoff,
     go_min_gene_count_in_term = go_min_gene_count_in_term,
@@ -1341,36 +1203,34 @@ run_cluster_go_enrichment <- function(cluster_assignments, universe_gene_ids, ca
     go_max_genes_in_go_db = go_max_genes_in_go_db
   )
 
-  if (base::file.exists(cache_path)) {
-    cached <- base::readRDS(cache_path)
-    if (base::isTRUE(base::identical(cached$key, cache_key))) {
+  if (file.exists(cache_path)) {
+    cached <- readRDS(cache_path)
+    if (isTRUE(identical(cached$cache_key, cache_key))) {
       return(cached$cluster_go)
     }
   }
 
-  base::message('CODEX_STEP go: running GO enrichment for temporal clusters')
-  cluster_go <- base::lapply(base::levels(cluster_assignments), function(cluster_name) {
+  message('CODEX_STEP go: running GO enrichment for temporal clusters')
+  cluster_go <- lapply(levels(cluster_assignments), function(cluster_name) {
     run_go_enrichment(
-      gene_ids = base::names(cluster_assignments)[cluster_assignments == cluster_name],
+      gene_ids = names(cluster_assignments)[cluster_assignments == cluster_name],
       universe_gene_ids = universe_gene_ids,
       set_label = cluster_name
     )
   })
-  base::names(cluster_go) <- base::levels(cluster_assignments)
+  names(cluster_go) <- levels(cluster_assignments)
 
-  base::dir.create(base::dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
-  base::saveRDS(
-    base::list(
-      key = cache_key,
-      cluster_go = cluster_go,
-      created = base::Sys.time()
+  dir.create(dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
+  saveRDS(
+    list(
+      cache_key = cache_key,
+      cluster_go = cluster_go
     ),
     cache_path
   )
   cluster_go
 }
 
-cluster_go_cache_path <- base::file.path(repo_root, 'results/GSE122380_temporal_cluster_go_k4.rds')
 cluster_go_results <- run_cluster_go_enrichment(
   cluster_assignments = gene_cluster,
   universe_gene_ids = heatmap_genes,
@@ -1466,34 +1326,40 @@ p_reference_timepoint_correlation <- plot_timepoint_correlation_heatmap(
 p_reference_overview <- p_reference_pca + p_reference_timepoint_correlation +
   patchwork::plot_layout(ncol = 2, widths = base::c(1, 1.08))
 
-# 6.0 fit PCA and validate loadings -----------------
+# 5.0 fit PCA and validate loadings -----------------
 
-base::message('CODEX_STEP pca: fitting reference PCA and timing polyline')
+message('CODEX_STEP pca: fitting reference PCA and timing polyline')
 
-pca_input <- base::t(vst[temporal_genes, , drop = FALSE])
-pca_fit <- stats::prcomp(pca_input, center = TRUE, scale. = FALSE)
+timing_fit <- score_differentiation_timing(
+  expression_matrix = vst,
+  metadata = meta,
+  temporal_genes = temporal_genes,
+  sample_id_col = 'sample_id',
+  time_col = 'day_numeric',
+  n_pcs = n_timing_pcs
+)
+pca_fit_unoriented <- timing_fit$pca_fit
+pca_fit <- pca_fit_unoriented
 pca_fit <- orient_pca_fit_by_day(pca_fit, sample_days)
+pc1_orientation <- if (isTRUE(all.equal(
+  pca_fit$x[, 'PC1'],
+  pca_fit_unoriented$x[, 'PC1']
+))) {
+  1
+} else {
+  -1
+}
 
-var_pct <- base::round(base::summary(pca_fit)$importance[2, 1:3] * 100, 1)
+var_pct <- round(summary(pca_fit)$importance[2, seq_len(n_timing_pcs)] * 100, 1)
 
-pca_df <- base::data.frame(
-  sample_id = base::rownames(pca_fit$x),
+pca_df <- data.frame(
+  sample_id = rownames(pca_fit$x),
   PC1 = pca_fit$x[, 1],
   PC2 = pca_fit$x[, 2],
   PC3 = pca_fit$x[, 3],
-  meta[base::match(base::rownames(pca_fit$x), meta$sample_id), ],
+  meta[match(rownames(pca_fit$x), meta$sample_id), ],
   row.names = NULL
 )
-
-p_pca_day <- ggplot2::ggplot(pca_df, ggplot2::aes(PC1, PC2, color = day_numeric)) +
-  ggplot2::geom_point(size = gs(0.95), alpha = 1) +
-  day_color_scale(name = 'Day') +
-  ggplot2::labs(
-    x = base::paste0("PC1 (", var_pct[1], "%)"),
-    y = base::paste0("PC2 (", var_pct[2], "%)")
-  ) +
-  theme_pub() +
-  legend_overlay_theme()
 
 early_cluster_labels <- utils::head(base::levels(gene_cluster), 2L)
 late_cluster_labels <- utils::tail(base::levels(gene_cluster), 2L)
@@ -1622,78 +1488,9 @@ p_pca_day <- (
   patchwork::plot_layout(widths = base::c(1.05, 0.95), heights = base::c(1, 1, 1)) &
   ggplot2::theme(plot.margin = ggplot2::margin(7, 8, 16, 8))
 
-calculate_centroid_polyline <- function(fit_pca_df, pc_columns = base::c('PC1', 'PC2', 'PC3')) {
-  centroid_df <- stats::aggregate(
-    fit_pca_df[, pc_columns, drop = FALSE],
-    by = base::list(day_numeric = fit_pca_df$day_numeric),
-    FUN = base::mean
-  )
-  centroid_df[base::order(centroid_df$day_numeric), , drop = FALSE]
-}
-
-project_points_to_polyline <- function(points_df, polyline_df, pc_columns = base::c('PC1', 'PC2', 'PC3')) {
-  base::stopifnot(base::nrow(polyline_df) >= 2L)
-
-  start_points <- base::as.matrix(polyline_df[-base::nrow(polyline_df), pc_columns, drop = FALSE])
-  end_points <- base::as.matrix(polyline_df[-1L, pc_columns, drop = FALSE])
-  segment_vectors <- end_points - start_points
-  segment_lengths_sq <- base::rowSums(segment_vectors^2)
-  keep_segments <- base::is.finite(segment_lengths_sq) & segment_lengths_sq > 0
-  start_points <- start_points[keep_segments, , drop = FALSE]
-  end_points <- end_points[keep_segments, , drop = FALSE]
-  segment_vectors <- segment_vectors[keep_segments, , drop = FALSE]
-  segment_lengths_sq <- segment_lengths_sq[keep_segments]
-  segment_start_days <- polyline_df$day_numeric[-base::nrow(polyline_df)][keep_segments]
-  segment_end_days <- polyline_df$day_numeric[-1L][keep_segments]
-
-  if (base::nrow(start_points) == 0L) {
-    base::stop('centroid polyline has no nonzero-length segments.', call. = FALSE)
-  }
-
-  first_day <- polyline_df$day_numeric[[1]]
-  last_day <- polyline_df$day_numeric[[base::nrow(polyline_df)]]
-  day_span <- last_day - first_day
-  if (!base::is.finite(day_span) || day_span <= 0) {
-    base::stop('centroid polyline days must increase.', call. = FALSE)
-  }
-
-  point_matrix <- base::as.matrix(points_df[, pc_columns, drop = FALSE])
-  projected <- base::t(base::vapply(base::seq_len(base::nrow(point_matrix)), function(i) {
-    point <- point_matrix[i, ]
-    point_repeated <- base::matrix(
-      point,
-      nrow = base::nrow(start_points),
-      ncol = base::length(pc_columns),
-      byrow = TRUE
-    )
-    segment_offset <- point_repeated - start_points
-    segment_fraction <- base::rowSums(segment_offset * segment_vectors) / segment_lengths_sq
-    segment_fraction <- base::pmin(base::pmax(segment_fraction, 0), 1)
-    projected_points <- start_points + segment_fraction * segment_vectors
-    squared_distance <- base::rowSums((point_repeated - projected_points)^2)
-    best_segment <- base::which.min(squared_distance)
-    predicted_day <- segment_start_days[[best_segment]] +
-      segment_fraction[[best_segment]] *
-        (segment_end_days[[best_segment]] - segment_start_days[[best_segment]])
-
-    base::c(
-      projected_points[best_segment, ],
-      polyline_day = predicted_day,
-      maturation_score = (predicted_day - first_day) / day_span,
-      segment_start_day = segment_start_days[[best_segment]],
-      segment_end_day = segment_end_days[[best_segment]],
-      segment_fraction = segment_fraction[[best_segment]],
-      squared_distance = squared_distance[[best_segment]]
-    )
-  }, base::numeric(base::length(pc_columns) + 6L)))
-
-  projected <- base::as.data.frame(projected)
-  base::names(projected)[base::seq_along(pc_columns)] <- pc_columns
-  projected
-}
-
-all_pca_df <- pca_results[['All']]$data
-centroid_polyline <- calculate_centroid_polyline(all_pca_df)
+centroid_polyline <- timing_fit$centroid_polyline
+names(centroid_polyline)[names(centroid_polyline) == 'timepoint'] <- 'day_numeric'
+centroid_polyline$PC1 <- centroid_polyline$PC1 * pc1_orientation
 
 make_loading_vector_data <- function(component_name) {
   component_loadings <- pca_fit$rotation[, component_name]
@@ -1857,14 +1654,8 @@ p_pc1_validation <- (p_pc1_loading_vectors | p_pc2_loading_vectors) / (p_pc1_go_
 
 # 7.0 score samples on the centroid-polyline timing trajectory -----------------
 
-pc_cols <- base::c('PC1', 'PC2', 'PC3')
-
 start_day <- base::min(days)
 end_day <- base::max(days)
-start_pt <- base::as.numeric(centroid_polyline[1, pc_cols])
-end_pt <- base::as.numeric(centroid_polyline[base::nrow(centroid_polyline), pc_cols])
-base::names(start_pt) <- pc_cols
-base::names(end_pt) <- pc_cols
 polyline_label_x_span <- base::diff(base::range(pca_df$PC1, centroid_polyline$PC1))
 polyline_label_y_span <- base::diff(base::range(pca_df$PC2, centroid_polyline$PC2))
 
@@ -1890,12 +1681,6 @@ polyline_mid_labels <- polyline_label_df[
   drop = FALSE
 ]
 
-polyline_projection <- project_points_to_polyline(
-  points_df = pca_df,
-  polyline_df = centroid_polyline,
-  pc_columns = pc_cols
-)
-
 centroid_polyline_segments <- base::data.frame(
   PC1 = centroid_polyline$PC1[-base::nrow(centroid_polyline)],
   PC2 = centroid_polyline$PC2[-base::nrow(centroid_polyline)],
@@ -1904,15 +1689,14 @@ centroid_polyline_segments <- base::data.frame(
   stringsAsFactors = FALSE
 )
 
-pca_df$maturation_score <- polyline_projection$maturation_score
-pca_df$polyline_day <- polyline_projection$polyline_day
-pca_df$polyline_segment_start_day <- polyline_projection$segment_start_day
-pca_df$polyline_segment_end_day <- polyline_projection$segment_end_day
-pca_df$polyline_segment_fraction <- polyline_projection$segment_fraction
-pca_df$polyline_squared_distance <- polyline_projection$squared_distance
-pca_df$polyline_PC1 <- polyline_projection$PC1
-pca_df$polyline_PC2 <- polyline_projection$PC2
-pca_df$polyline_PC3 <- polyline_projection$PC3
+score_rows <- match(pca_df$sample_id, timing_fit$scores$sample_id)
+stopifnot(!anyNA(score_rows))
+pca_df$differentiation_score <- timing_fit$scores$differentiation_score[score_rows]
+pca_df$predicted_day <- timing_fit$scores$predicted_time[score_rows]
+pca_df$polyline_segment_start_day <- timing_fit$scores$nearest_segment_start[score_rows]
+pca_df$polyline_segment_end_day <- timing_fit$scores$nearest_segment_end[score_rows]
+pca_df$polyline_segment_fraction <- timing_fit$scores$segment_fraction[score_rows]
+pca_df$polyline_squared_distance <- timing_fit$scores$squared_distance[score_rows]
 
 p_timing_polyline <- ggplot2::ggplot(pca_df, ggplot2::aes(PC1, PC2)) +
   ggplot2::geom_point(ggplot2::aes(color = day_numeric), size = gs(0.95), alpha = 1) +
@@ -1971,16 +1755,16 @@ p_timing_polyline <- ggplot2::ggplot(pca_df, ggplot2::aes(PC1, PC2)) +
   legend_overlay_theme()
 
 score_summary <- stats::aggregate(
-  maturation_score ~ day_numeric,
+  differentiation_score ~ day_numeric,
   data = pca_df,
   FUN = function(x) base::c(mean = base::mean(x), sd = stats::sd(x), n = base::length(x))
 )
 
 score_summary <- base::data.frame(
   day_numeric = score_summary$day_numeric,
-  mean_score = score_summary$maturation_score[, "mean"],
-  sd_score = score_summary$maturation_score[, "sd"],
-  n = score_summary$maturation_score[, "n"],
+  mean_score = score_summary$differentiation_score[, "mean"],
+  sd_score = score_summary$differentiation_score[, "sd"],
+  n = score_summary$differentiation_score[, "n"],
   row.names = NULL
 )
 score_summary$lower_score <- score_summary$mean_score - score_summary$sd_score
@@ -2005,7 +1789,7 @@ score_curve_upper <- base::pmax(score_curve$lower_score, score_curve$upper_score
 score_curve$lower_score <- score_curve_lower
 score_curve$upper_score <- score_curve_upper
 
-p_score_by_day <- ggplot2::ggplot(pca_df, ggplot2::aes(day_numeric, maturation_score)) +
+p_score_by_day <- ggplot2::ggplot(pca_df, ggplot2::aes(day_numeric, differentiation_score)) +
   ggplot2::geom_hline(
     yintercept = base::c(0, 1), linetype = "dashed",
     linewidth = gs(0.24), color = "black"
@@ -2035,7 +1819,7 @@ p_score_by_day <- ggplot2::ggplot(pca_df, ggplot2::aes(day_numeric, maturation_s
   ) +
   ggplot2::scale_x_continuous(breaks = days) +
   day_color_scale(name = 'Day') +
-  ggplot2::labs(x = "Differentiation day", y = "Maturation score") +
+  ggplot2::labs(x = "Differentiation day", y = "Differentiation timing score") +
   theme_pub() +
   ggplot2::theme(
     legend.position = base::c(0.36, 0.78),
@@ -2054,12 +1838,46 @@ p_score_by_day <- ggplot2::ggplot(pca_df, ggplot2::aes(day_numeric, maturation_s
 
 # 8.0 load cached leave-one-line-out validation -----------------
 
-loo_cache_path <- base::file.path(repo_root, 'tmp/GSE122380_leave_one_line_out_temporal_trajectory.rds')
-has_loo_validation <- base::file.exists(loo_cache_path)
+if (!file.exists(loo_validation_cache_path)) {
+  stop(
+    'Required leave-one-line-out validation cache is missing. Run ',
+    'scripts/02_run_leave_one_line_out_validation.R before rendering.',
+    call. = FALSE
+  )
+}
 
-if (has_loo_validation) {
-  base::message('CODEX_STEP loo: loading cached leave-one-line-out validation')
-  loo_cache <- base::readRDS(loo_cache_path)
+validation_source_paths <- c(
+  'scripts/02_run_leave_one_line_out_validation.R',
+  'functions/load_GSE122380_data.R',
+  'functions/select_temporal_genes.R',
+  'functions/score_differentiation_timing.R',
+  'config/analysis.yml'
+)
+expected_validation_cache_key <- list(
+  input_md5 = GSE122380_data$input_md5,
+  implementation_md5 = unname(tools::md5sum(validation_source_paths)),
+  package_versions = c(
+    DESeq2 = as.character(utils::packageVersion('DESeq2')),
+    edgeR = as.character(utils::packageVersion('edgeR'))
+  ),
+  expression_cpm_cutoff = expression_cpm_cutoff,
+  lrt_padj_cutoff = lrt_padj_cutoff,
+  vst_dynamic_range_cutoff = vst_dynamic_range_cutoff,
+  n_pcs = n_timing_pcs,
+  heldout_lines = sort(unique(as.character(meta$cell_line)))
+)
+
+message('CODEX_STEP loo: loading cached leave-one-line-out validation')
+loo_cache <- readRDS(loo_validation_cache_path)
+if (!isTRUE(identical(loo_cache$cache_key, expected_validation_cache_key))) {
+  stop(
+    'The leave-one-line-out validation cache is stale for the current inputs, ',
+    'code, parameters, or package versions. Rerun ',
+    'scripts/02_run_leave_one_line_out_validation.R.',
+    call. = FALSE
+  )
+}
+
   loo_scores <- loo_cache$scores
   loo_polyline_all <- loo_scores[
     loo_scores$gene_set == 'All temporal',
@@ -2099,7 +1917,7 @@ if (has_loo_validation) {
     show_x_title <- row_index == loo_line_nrow
     line_r <- stats::cor(line_df$actual_day, line_df$predicted_day, use = 'complete.obs')
     line_r_label <- base::sprintf(
-      "r = %.2f\nR\u00b2 = %.2f",
+      "r = %.2f\nr\u00b2 = %.2f",
       line_r,
       line_r^2
     )
@@ -2169,7 +1987,7 @@ if (has_loo_validation) {
       'Held-out cell lines',
       'Held-out samples',
       'Correlation between actual and predicted day',
-      'R-squared',
+      'Squared Pearson correlation',
       'Mean absolute error',
       'Median absolute error',
       'Predictions within 1 day',
@@ -2233,26 +2051,6 @@ if (has_loo_validation) {
     ggplot2::labs(x = 'Actual differentiation day', y = 'Predicted differentiation day') +
     theme_pub() +
     ggplot2::theme(legend.position = 'none')
-
-  p_loo_residual_boxplots <- ggplot2::ggplot(
-    loo_best_all,
-    ggplot2::aes(base::factor(actual_day), residual)
-  ) +
-    ggplot2::geom_hline(yintercept = 0, color = 'black', linetype = 'dashed', linewidth = gs(0.24)) +
-    ggplot2::geom_boxplot(
-      width = 0.38,
-      outlier.shape = NA,
-      linewidth = gs(0.30),
-      alpha = 0.70,
-      fill = '#E6E6E6',
-      color = 'black',
-      staplewidth = 0.3
-    ) +
-    ggplot2::labs(x = 'Actual differentiation day', y = 'Predicted day - actual day') +
-    theme_pub() +
-    ggplot2::theme(
-      plot.margin = ggplot2::margin(8, 6, 8, 8)
-    )
 
   p_loo_summary <- p_loo_predicted_vs_actual
 
@@ -2326,26 +2124,23 @@ if (has_loo_validation) {
       axis.text.y = ggplot2::element_text(size = fs(6)),
       plot.margin = ggplot2::margin(8, 8, 8, 8)
     )
-} else {
-  p_loo_line_predictions <- NULL
-  p_loo_predicted_vs_actual <- NULL
-  p_loo_residual_boxplots <- NULL
-  p_loo_summary <- NULL
-  p_loo_timepoint_accuracy <- NULL
-  loo_method_comparison <- NULL
-}
+message('CODEX_STEP figures: saving tutorial figures')
 
-base::message('CODEX_STEP figures: saving report figures')
-
-save_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_reference_pca_and_day_correlation'),
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_reference_pca_and_day_correlation'),
   plot = p_reference_overview,
   width = 7.2,
   height = 3.81
 )
-save_drawn_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_temporal_heatmap'),
+save_drawn_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_temporal_heatmap'),
   draw_fn = function() {
+    ComplexHeatmap::ht_opt(
+      ROW_ANNO_PADDING = grid::unit(0, 'mm'),
+      DENDROGRAM_PADDING = grid::unit(0, 'mm'),
+      TITLE_PADDING = grid::unit(c(1, 1), 'pt')
+    )
+    on.exit(ComplexHeatmap::ht_opt(RESET = TRUE), add = TRUE)
     ComplexHeatmap::draw(
       p_lrt_heatmap,
       heatmap_legend_side = 'right',
@@ -2356,56 +2151,54 @@ save_drawn_report_figure(
   height = 3.35,
   png_scale = 2
 )
-save_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_temporal_clusters'),
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_temporal_clusters'),
   plot = p_cluster_trajectories,
   width = 7.2,
   height = 8.52
 )
-save_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_pca_day'),
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_pca_day'),
   plot = p_pca_day,
   width = 7.2,
   height = 8.52
 )
-save_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_pc1_validation'),
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_pc1_validation'),
   plot = p_pc1_validation,
   width = 7.2,
   height = 4.95
 )
-save_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_timing_polyline'),
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_timing_polyline'),
   plot = p_timing_polyline,
   width = 7.2,
   height = 3.81
 )
-save_report_figure(
-  path_stub = base::file.path(report_figure_dir, 'GSE122380_score_by_day'),
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_score_by_day'),
   plot = p_score_by_day,
   width = 7.2,
   height = 3.65
 )
 
-if (has_loo_validation) {
-  save_report_figure(
-    path_stub = base::file.path(report_figure_dir, 'GSE122380_loo_line_predictions'),
-    plot = p_loo_line_predictions,
-    width = 7.2,
-    height = 5.75
-  )
-  save_report_figure(
-    path_stub = base::file.path(report_figure_dir, 'GSE122380_loo_summary'),
-    plot = p_loo_summary,
-    width = 7.2,
-    height = 3.15
-  )
-  save_report_figure(
-    path_stub = base::file.path(report_figure_dir, 'GSE122380_loo_timepoint_accuracy'),
-    plot = p_loo_timepoint_accuracy,
-    width = 5.4,
-    height = 2.75
-  )
-}
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_loo_line_predictions'),
+  plot = p_loo_line_predictions,
+  width = 7.2,
+  height = 5.75
+)
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_loo_summary'),
+  plot = p_loo_summary,
+  width = 7.2,
+  height = 3.15
+)
+save_figure_pair(
+  path_stub = base::file.path(docs_figure_dir, 'GSE122380_loo_timepoint_accuracy'),
+  plot = p_loo_timepoint_accuracy,
+  width = 5.4,
+  height = 2.75
+)
 
 base::message('CODEX_DONE built tutorial figures and summary tables')

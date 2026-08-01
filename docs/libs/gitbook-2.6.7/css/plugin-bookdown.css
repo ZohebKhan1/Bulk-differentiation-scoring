@@ -7,7 +7,7 @@
   right: 0;
   top: 0;
   left: 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  border-bottom: 1px solid rgba(0,0,0,.07);
 }
 span.search-highlight {
   background-color: #ffff88;
@@ -43,23 +43,18 @@ span.search-highlight {
 .book .book-body.fixed .body-inner {
   top: 50px;
 }
-.book .book-body .page-wrapper .page-inner section.normal sub,
-.book .book-body .page-wrapper .page-inner section.normal sup {
+.book .book-body .page-wrapper .page-inner section.normal sub, .book .book-body .page-wrapper .page-inner section.normal sup {
   font-size: 85%;
 }
 
 @media print {
-  .book .book-summary,
-  .book .book-body .book-header,
-  .fa {
+  .book .book-summary, .book .book-body .book-header, .fa {
     display: none !important;
   }
   .book .book-body.fixed {
     left: 0px;
   }
-  .book .book-body,
-  .book .book-body .body-inner,
-  .book.with-summary {
+  .book .book-body,.book .book-body .body-inner, .book.with-summary {
     overflow: visible !important;
   }
 }
@@ -75,72 +70,32 @@ span.search-highlight {
 .book .book-body .page-wrapper .page-inner section.normal table tr.header {
   border-top-width: 2px;
 }
-.book
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  tr:last-child
-  td {
+.book .book-body .page-wrapper .page-inner section.normal table tr:last-child td {
   border-bottom-width: 2px;
 }
-.book .book-body .page-wrapper .page-inner section.normal table td,
-.book .book-body .page-wrapper .page-inner section.normal table th {
+.book .book-body .page-wrapper .page-inner section.normal table td, .book .book-body .page-wrapper .page-inner section.normal table th {
   border-left: none;
   border-right: none;
 }
-.book
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table.kable_wrapper
-  > tbody
-  > tr,
-.book
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table.kable_wrapper
-  > tbody
-  > tr
-  > td {
+.book .book-body .page-wrapper .page-inner section.normal table.kable_wrapper > tbody > tr, .book .book-body .page-wrapper .page-inner section.normal table.kable_wrapper > tbody > tr > td {
   border-top: none;
 }
-.book
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table.kable_wrapper
-  > tbody
-  > tr:last-child
-  > td {
-  border-bottom: none;
+.book .book-body .page-wrapper .page-inner section.normal table.kable_wrapper > tbody > tr:last-child > td {
+    border-bottom: none;
 }
 
-div.theorem,
-div.lemma,
-div.corollary,
-div.proposition,
-div.conjecture {
+div.theorem, div.lemma, div.corollary, div.proposition, div.conjecture {
   font-style: italic;
 }
-span.theorem,
-span.lemma,
-span.corollary,
-span.proposition,
-span.conjecture {
+span.theorem, span.lemma, span.corollary, span.proposition, span.conjecture {
   font-style: normal;
 }
-div.proof > *:last-child:after {
+div.proof>*:last-child:after {
   content: "\25a2";
   float: right;
 }
 .header-section-number {
-  padding-right: 0.5em;
+  padding-right: .5em;
 }
 #header .multi-author {
   margin: 0.5em 0 -0.5em 0;

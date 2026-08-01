@@ -1,223 +1,107 @@
-# Differentiation Timing Score
+# Differentiation timing score
 
-Bulk RNA-seq workflow for scoring differentiation timing from a reference
-time-course trajectory. The tutorial uses the QC-processed GSE122380
-iPSC-to-cardiomyocyte differentiation dataset and a polyline-based PCA scoring
-method.
+A reproducible bulk RNA-seq tutorial and standalone R scorer for estimating position along a reference differentiation time course. The worked example uses 192 processed GSE122380 iPSC-to-cardiomyocyte samples from 13 cell lines across days 1 through 15.
 
-Rendered tutorial: `https://zohebkhan1.github.io/pca-maturation-scoring/`
+[Open the rendered tutorial](https://zohebkhan1.github.io/pca-maturation-scoring/)
 
-## Use The Scoring Function
+## Reuse the scorer
 
-The reusable scorer is a single R file. It does not run DESeq2, make figures, or
-write outputs; it takes normalized expression, metadata, and a temporal gene set,
-then returns sample scores along the fitted reference polyline.
+The scorer is one dependency-free R file. It accepts normalized expression, metadata, and a preselected temporal-gene set; it does not normalize counts, select genes, draw figures, or write files.
 
 ```r
-base_url <- "https://raw.githubusercontent.com/ZohebKhan1/pca-maturation-scoring/main/functions"
-
-download.file(
-  paste0(base_url, "/score_differentiation_timing.R"),
-  "score_differentiation_timing.R"
+base_url <- paste0(
+  'https://raw.githubusercontent.com/ZohebKhan1/',
+  'pca-maturation-scoring/main/functions'
 )
 
-source("score_differentiation_timing.R")
-```
+download.file(
+  paste0(base_url, '/score_differentiation_timing.R'),
+  'score_differentiation_timing.R'
+)
+source('score_differentiation_timing.R')
 
-Minimal usage:
-
-```r
 timing_fit <- score_differentiation_timing(
   expression_matrix = vst_matrix,
   metadata = sample_metadata,
   temporal_genes = temporal_genes,
-  sample_id_col = "sample_id",
-  time_col = "day_numeric",
-  reference_col = "condition",
-  reference_values = "control",
+  sample_id_col = 'sample_id',
+  time_col = 'day_numeric',
+  reference_col = 'condition',
+  reference_values = 'control',
   n_pcs = 3
 )
 
 head(timing_fit$scores)
 ```
 
-## Repository Tree
+The function trains PCA only on reference samples, joins ordered reference-time centroids, and projects every sample to its nearest position on the finite centroid polyline. `predicted_time` and `differentiation_score` are bounded by the reference interval. The returned squared distance is useful for identifying samples far from the fitted trajectory.
+
+## Repository layout
 
 ```text
-differentiation_score/
-├── data/                         QC-processed GSE122380 input objects
-├── functions/                    Standalone polyline timing scorer
-├── report/                       Bookdown source, assets, and rendered site
-│   ├── assets/figures/           Tutorial figure PNG/SVG outputs
-│   ├── index.html                Rendered GitHub Pages-ready tutorial
-│   └── tutorial.Rmd              Tutorial source
-├── scripts/                      Maintained analysis and render scripts
-├── .gitignore                    Local cache, scratch, and agent-file rules
-└── README.md                     Repository overview
+├── config/       Shared scientific thresholds and retained-PC count
+├── data/         Tracked processed GSE122380 inputs
+├── docs/         Generated GitHub Pages site; do not edit by hand
+├── functions/    Data boundary, temporal selection, and standalone scorer
+├── scripts/      Analysis, cell-line cross-validation, and site render
+├── tests/        Dependency-free scorer contract checks
+└── tutorial/     Single maintained tutorial source, CSS, and font assets
 ```
 
-## Data
+`tutorial/tutorial.Rmd` is the only maintained site source. `scripts/03_render_tutorial_site.R` renders it directly to `docs/`, preventing source and deployed copies from drifting.
 
-The repository includes only the compact QC-processed objects needed by the
-tutorial:
+## Reproduce on macOS
 
-- `data/GSE122380_metadata.rds`: sample metadata
-- `data/GSE122380_counts.rds`: filtered raw count matrix
-- `data/GSE122380_vst.rds`: variance-stabilized expression matrix
+Use a current R installation. On Apple silicon, all packages should be installed for the native arm64 R architecture. The following separates CRAN and Bioconductor dependencies:
 
-Raw FASTQ/count preprocessing files are intentionally excluded.
+```r
+install.packages(c(
+  'BiocManager', 'bookdown', 'circlize', 'ggplot2', 'ggrepel',
+  'patchwork', 'ragg', 'scales', 'svglite', 'systemfonts',
+  'viridis', 'yaml'
+))
 
-## Workflow
-
-Build tutorial objects and figures:
-
-```bash
-Rscript scripts/01_build_tutorial_objects.R
+BiocManager::install(c(
+  'AnnotationDbi', 'clusterProfiler', 'ComplexHeatmap', 'DESeq2',
+  'edgeR', 'org.Hs.eg.db'
+))
 ```
 
-Optionally run leave-one-line-out validation:
+From the repository root, run the held-out validation first, then render:
 
 ```bash
 Rscript scripts/02_run_leave_one_line_out_validation.R
-```
-
-Render the tutorial site:
-
-```bash
 Rscript scripts/03_render_tutorial_site.R
 ```
 
-The rendered site is written to `report/index.html`.
+The validation script checkpoints its current fold results in `tmp/`. Its cache key includes input, implementation, parameter, package-version, and held-out-line identity. The render refuses to use a missing or stale cache. Rendering sources `scripts/01_build_tutorial_objects.R`, refreshes all ten figure pairs, and writes `docs/index.html`.
 
-## Method Summary
+Run the fast standalone-scorer checks independently with:
 
-The workflow identifies temporal genes using day-level expression support,
-DESeq2 likelihood-ratio testing, and VST-scale dynamic-range filtering. PCA is
-trained on the selected temporal genes. Reference day centroids are connected
-into an ordered polyline through retained PC space, and each sample is scored by
-the nearest position along that fitted polyline. The day 1 centroid anchors score
-0 and the day 15 centroid anchors score 1.
+```bash
+Rscript tests/test_score_differentiation_timing.R
+```
 
-The standalone function in `functions/score_differentiation_timing.R` implements
-only the PCA/polyline scoring step. Temporal gene selection and validation are
-kept in the tutorial scripts so users can adapt those decisions explicitly.
+## Scientific contract
 
-## Figures
+Temporal genes must satisfy all three configured criteria: maximum day-mean TMM CPM at least 10, DESeq2 LRT adjusted p-value below `1e-7`, and day-mean VST range at least 0.6. PCA is centered without variance scaling and retains three PCs. Ordered day centroids form the scoring polyline; the day 1 and day 15 centroids anchor scores 0 and 1.
 
-### Figure 1. Experimental structure of the GSE122380 differentiation time course
+Leave-one-cell-line-out validation refits temporal-gene selection, PCA, and the polyline within each fold. The tracked VST matrix is shared across folds because its upstream construction pipeline is unavailable. These results are internal validation conditional on the processed GSE122380 cohort, not an external transferability estimate.
 
-Panel a shows PCA of all samples using the top 10% most variable VST genes,
-colored by differentiation day. Panel b shows the Pearson correlation matrix of
-replicate-collapsed day profiles using the same variable-gene set.
+See [METHODS.md](METHODS.md) for analysis decisions, [DATA.md](DATA.md) for input dimensions and checksums, and [VALIDATION.md](VALIDATION.md) for the executed checks and remaining limits. Exact R and package versions are recorded at the end of the rendered tutorial.
 
-![Figure 1](report/assets/figures/GSE122380_reference_pca_and_day_correlation.png)
+## Scope and provenance
 
-### Figure 2. Temporal-gene heatmap
-
-Z-scored VST expression for the top 1,500 temporally variable genes after
-expression, LRT, and dynamic-range filtering. Rows are split into four temporal
-clusters, and columns are ordered by differentiation day.
-
-![Figure 2](report/assets/figures/GSE122380_temporal_heatmap.png)
-
-### Figure 3. Temporal gene clusters and GO enrichment
-
-Temporal gene clusters and GO biological process enrichment from the top 1,500
-temporally variable genes. Each row shows one k=4 cluster trajectory summary and
-its top enriched GO terms.
-
-![Figure 3](report/assets/figures/GSE122380_temporal_clusters.png)
-
-### Figure 4. Reference PCA and PC1-day relationships
-
-Reference PCA and PC1-day relationships for the final temporal gene set, the
-early C1+C2 temporal clusters, and the late C3+C4 temporal clusters.
-
-![Figure 4](report/assets/figures/GSE122380_pca_day.png)
-
-### Figure 5. PCA loading-gene annotation and GO enrichment
-
-Panel a shows top PC1-negative and PC1-positive genes as loading vectors in
-PC1/PC2 loading space. Panel b shows top PC2-negative and PC2-positive genes
-using the same vector definition. Panels c-d show GO biological process
-enrichment among the top 500 PC1-negative and PC1-positive loading genes.
-
-![Figure 5](report/assets/figures/GSE122380_pc1_validation.png)
-
-### Figure 6. Differentiation timing polyline
-
-Differentiation timing polyline in reference PCA space. Small black points mark
-day-level mean PCA centroids, and the black arrows connect those centroids in
-differentiation-day order. The day 1 centroid maps to score 0, and the day 15
-centroid maps to score 1.
-
-![Figure 6](report/assets/figures/GSE122380_timing_polyline.png)
-
-### Figure 7. Polyline differentiation timing scores
-
-Polyline differentiation timing scores across differentiation day. The gray band
-shows the day-level standard deviation around the mean score.
-
-![Figure 7](report/assets/figures/GSE122380_score_by_day.png)
-
-### Figure 8. Leave-one-line-out predicted trajectories
-
-Leave-one-line-out predicted differentiation-day trajectories. Each panel is one
-held-out cell line, with black dots for held-out samples and the panel-specific
-correlation shown in the upper left.
-
-![Figure 8](report/assets/figures/GSE122380_loo_line_predictions.png)
-
-### Figure 9. Leave-one-line-out validation summary
-
-Predicted versus actual differentiation day for held-out samples.
-
-![Figure 9](report/assets/figures/GSE122380_loo_summary.png)
-
-### Figure 10. Leave-one-line-out prediction error by differentiation day
-
-For held-out sample \(i\), absolute prediction error is calculated as
-\(e_i = |\hat{t}\_i - t_i|\), where \(\hat{t}\_i\) is the polyline-predicted
-differentiation day and \(t_i\) is the observed differentiation day.
-
-Boxplots show the absolute difference between predicted and actual
-differentiation day among held-out samples at each timepoint. Lower values
-indicate closer predictions. The number above each boxplot is the lower of the
-mean and median absolute prediction error for that timepoint.
-
-![Figure 10](report/assets/figures/GSE122380_loo_timepoint_accuracy.png)
-
-## Key Dependencies
-
-Package versions used for the current rendered tutorial:
-
-| Package         | Version |
-| --------------- | ------: |
-| DESeq2          |  1.52.0 |
-| ComplexHeatmap  |  2.28.0 |
-| clusterProfiler |  4.20.0 |
-| ggplot2         |   4.0.3 |
-| org.Hs.eg.db    |  3.23.1 |
-| patchwork       |   1.3.2 |
-| svglite         |   2.2.2 |
-| viridis         |   0.6.5 |
-| edgeR           |  4.10.1 |
-| bookdown        |    0.46 |
+The repository starts from three tracked processed RDS objects. It does not include raw-read acquisition, QC, alignment, quantification, or VST-construction code, so reproducibility begins at these versioned inputs rather than FASTQ files. The score measures trajectory position; it should not be interpreted by itself as cell quality, differentiation efficiency, potency, or lineage identity.
 
 ## References
 
-1. Love MI, Huber W, Anders S. Moderated estimation of fold change and
-   dispersion for RNA-seq data with DESeq2. _Genome Biology_. 2014;15:550.
-2. Strober BJ, Elorbany R, Rhodes K, et al. Dynamic genetic regulation of gene
-   expression during cellular differentiation. _Science_. 2019;364:1287-1290.
-3. Xie Y. _bookdown: Authoring Books and Technical Documents with R Markdown_. 2016.
+1. Love MI, Huber W, Anders S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology*. 2014;15:550.
+2. Strober BJ, Elorbany R, Rhodes K, et al. Dynamic genetic regulation of gene expression during cellular differentiation. *Science*. 2019;364:1287-1290.
+3. Xie Y. *bookdown: Authoring Books and Technical Documents with R Markdown*. 2016.
 
 ## Contact
 
-**Author:** Zoheb Khan
+Zoheb Khan, Moskowitz Lab, University of Chicago
 
-**Affiliation:** Bioinformatician @ Moskowitz Lab at the University of Chicago Department of Pathology, Pediatrics, and Human Genetics
-
-**Email:** zohebkhan600@gmail.com
-
-**Website:** https://zohebkhan1.github.io/
+zohebkhan600@gmail.com · [zohebkhan1.github.io](https://zohebkhan1.github.io/)

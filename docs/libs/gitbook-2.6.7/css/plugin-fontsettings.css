@@ -114,12 +114,7 @@ div.book.color-theme-2 {
 .book.color-theme-1 .book-body .page-wrapper .page-inner section.normal hr {
   background-color: inherit;
 }
-.book.color-theme-1
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  blockquote {
+.book.color-theme-1 .book-body .page-wrapper .page-inner section.normal blockquote {
   border-color: #c4b29f;
   opacity: 0.9;
 }
@@ -129,48 +124,19 @@ div.book.color-theme-2 {
   color: #657b83;
   border-color: #f8df9c;
 }
-.book.color-theme-1
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  .highlight {
+.book.color-theme-1 .book-body .page-wrapper .page-inner section.normal .highlight {
   background-color: inherit;
 }
-.book.color-theme-1
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  th,
-.book.color-theme-1
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  td {
+.book.color-theme-1 .book-body .page-wrapper .page-inner section.normal table th,
+.book.color-theme-1 .book-body .page-wrapper .page-inner section.normal table td {
   border-color: #f5d06c;
 }
-.book.color-theme-1
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  tr {
+.book.color-theme-1 .book-body .page-wrapper .page-inner section.normal table tr {
   color: inherit;
   background-color: #fdf6e3;
   border-color: #444444;
 }
-.book.color-theme-1
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  tr:nth-child(2n) {
+.book.color-theme-1 .book-body .page-wrapper .page-inner section.normal table tr:nth-child(2n) {
   background-color: #fbeecb;
 }
 .book.color-theme-2 .book-body .page-wrapper .page-inner section.normal {
@@ -197,12 +163,7 @@ div.book.color-theme-2 {
 .book.color-theme-2 .book-body .page-wrapper .page-inner section.normal hr {
   background-color: #373b4e;
 }
-.book.color-theme-2
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  blockquote {
+.book.color-theme-2 .book-body .page-wrapper .page-inner section.normal blockquote {
   border-color: #373b4e;
 }
 .book.color-theme-2 .book-body .page-wrapper .page-inner section.normal pre,
@@ -211,48 +172,19 @@ div.book.color-theme-2 {
   background: #2d3143;
   border-color: #2d3143;
 }
-.book.color-theme-2
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  .highlight {
+.book.color-theme-2 .book-body .page-wrapper .page-inner section.normal .highlight {
   background-color: #282a39;
 }
-.book.color-theme-2
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  th,
-.book.color-theme-2
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  td {
+.book.color-theme-2 .book-body .page-wrapper .page-inner section.normal table th,
+.book.color-theme-2 .book-body .page-wrapper .page-inner section.normal table td {
   border-color: #3b3f54;
 }
-.book.color-theme-2
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  tr {
+.book.color-theme-2 .book-body .page-wrapper .page-inner section.normal table tr {
   color: #b6c2d2;
   background-color: #2d3143;
   border-color: #3b3f54;
 }
-.book.color-theme-2
-  .book-body
-  .page-wrapper
-  .page-inner
-  section.normal
-  table
-  tr:nth-child(2n) {
+.book.color-theme-2 .book-body .page-wrapper .page-inner section.normal table tr:nth-child(2n) {
   background-color: #35394b;
 }
 .book.color-theme-1 .book-header {

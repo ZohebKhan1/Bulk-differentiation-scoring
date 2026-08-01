@@ -1,52 +1,27 @@
-# Local editor, agent, and tool metadata
+# Local editor, tool, and R session metadata
 .Rproj.user/
 .ruff_cache/
-/AGENTS.md
-/CLAUDE.md
-/.codex/
-/.cursor/
-/.continue/
-/coding_guidelines.md
-/differentiation_score.Rproj
-/tools/
-
-# Local environment files
-/.quarto/
-**/*.quarto_ipynb
 .Rhistory
 .RData
 .Ruserdata
 .Renviron
 .env
 .DS_Store
-*Zone.Identifier
+.r_codex_utils/
 
-# R/bookdown generated intermediates
+# R and bookdown intermediates
 *_cache/
 *_files/
-/.nojekyll
-/index.html
-/index_files/
-/tutorial_workflow_files/
-/scripts/_site/
-/scripts/_book/
-/scripts/index.html
-/assets/figures/
-/scripts/assets/
 *.Rout
 *.log
 *.tmp
 
-# Local analysis outputs, caches, and scratch files
-/plots/
+# Analysis caches and scratch files
 /results/
-/reports/
 /tmp/
 /scratch/
-/maturation_scores.csv
-/pca_trajectory_plot.png
 
-# Raw/source datasets and preprocessing scratch outputs are excluded.
+# Raw and preprocessing inputs
 /raw/
 /dat/
 /data/raw/

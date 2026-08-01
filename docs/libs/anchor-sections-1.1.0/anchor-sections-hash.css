@@ -1,5 +1,2 @@
 /* Styles for section anchors */
-a.anchor-section::before {
-  content: "#";
-  font-size: 80%;
-}
+a.anchor-section::before {content: '#';font-size: 80%;}

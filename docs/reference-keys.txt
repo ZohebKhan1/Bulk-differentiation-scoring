@@ -1,0 +1,14 @@
+tab:sample-summary-table
+tab:lrt-summary-table
+tab:loo-summary-table
+introduction
+reuse-the-scorer
+data-and-scope
+method
+select-temporal-genes
+train-the-pca-reference-space
+fit-and-score-the-day-centroid-polyline
+internal-cell-line-cross-validation
+interpretation-and-adaptation
+references
+session-information

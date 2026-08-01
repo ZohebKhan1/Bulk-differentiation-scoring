@@ -1,46 +1,106 @@
-# Created:
-# 2026-06-23
+# ----
+# author:
+# - Zoheb Khan
 #
-# Inputs:
-# - report/_bookdown.yml: bookdown configuration
-# - report/tutorial.Rmd: tutorial source document
-# - scripts/01_build_tutorial_objects.R: sourced analysis
-# - data/GSE122380_metadata.rds: QC-filtered GSE122380 sample metadata
-# - data/GSE122380_counts.rds: filtered raw count matrix
-# - data/GSE122380_vst.rds: VST expression matrix aligned to metadata
+# script path:
+# - scripts/03_render_tutorial_site.R
 #
-# Outputs:
-# - report/index.html: rendered tutorial site entry point
-# - docs/index.html: GitHub Pages copy of the rendered tutorial site
+# input data:
+# - tutorial/tutorial.Rmd
+# - tutorial/_bookdown.yml
+# - tutorial/_output.yml
+# - tutorial/style.css
+# - tutorial/after-body.html
+# - tutorial/assets/fonts/*.otf
+# - scripts/01_build_tutorial_objects.R
+# - tmp/GSE122380_leave_one_line_out_validation.rds
 #
-# Purpose:
-# Render the active GSE122380 bookdown tutorial in report/ and copy the static
-# site to docs/ for GitHub Pages.
+# outputs:
+# - docs/index.html
+# - docs/style.css
+# - docs/search_index.json
+# - docs/reference-keys.txt
+# - docs/libs/
+# - docs/assets/figures/
+# - docs/assets/fonts/
+# - docs/.nojekyll
+# ----
 
-# 1.0 validate render dependencies -----------------
+# 0.0 validate render inputs and dependencies -----------------
 
-base::stopifnot(base::requireNamespace('bookdown', quietly = TRUE))
+if (!requireNamespace('bookdown', quietly = TRUE)) {
+  stop('The bookdown package is required to render the tutorial.', call. = FALSE)
+}
 
-# 2.0 render bookdown site -----------------
+required_inputs <- c(
+  'tutorial/tutorial.Rmd',
+  'tutorial/_bookdown.yml',
+  'tutorial/_output.yml',
+  'tutorial/style.css',
+  'tutorial/after-body.html',
+  'scripts/01_build_tutorial_objects.R',
+  'tmp/GSE122380_leave_one_line_out_validation.rds'
+)
+missing_inputs <- required_inputs[!file.exists(required_inputs)]
+if (length(missing_inputs) > 0L) {
+  stop(
+    'Missing required render inputs: ',
+    paste(missing_inputs, collapse = ', '),
+    '. Run scripts/02_run_leave_one_line_out_validation.R before rendering.',
+    call. = FALSE
+  )
+}
+
+source_font_dir <- 'tutorial/assets/fonts'
+source_fonts <- list.files(
+  source_font_dir,
+  pattern = '\\.otf$',
+  full.names = TRUE
+)
+if (length(source_fonts) != 8L) {
+  stop('Expected exactly eight maintained tutorial font files.', call. = FALSE)
+}
+
+# 1.0 render the single tutorial source directly to docs -----------------
 
 bookdown::render_book(
-  input = 'report',
+  input = 'tutorial',
   output_format = 'bookdown::gitbook',
-  clean = TRUE)
+  clean = TRUE
+)
 
-base::stopifnot(base::file.exists('report/index.html'))
-
-# 3.0 refresh GitHub Pages copy -----------------
-
-if (base::dir.exists('docs')) {
-  base::unlink('docs', recursive = TRUE)
+required_site_outputs <- c(
+  'docs/index.html',
+  'docs/style.css',
+  'docs/search_index.json',
+  'docs/reference-keys.txt'
+)
+missing_site_outputs <- required_site_outputs[!file.exists(required_site_outputs)]
+if (length(missing_site_outputs) > 0L) {
+  stop(
+    'Rendering did not create required site outputs: ',
+    paste(missing_site_outputs, collapse = ', '),
+    '.',
+    call. = FALSE
+  )
 }
-base::dir.create('docs', recursive = TRUE, showWarnings = FALSE)
-base::file.copy(
-  from = base::list.files('report', all.files = TRUE, no.. = TRUE, full.names = TRUE),
-  to = 'docs',
-  recursive = TRUE,
+
+# 2.0 install static font assets and GitHub Pages marker -----------------
+
+docs_font_dir <- 'docs/assets/fonts'
+dir.create(docs_font_dir, recursive = TRUE, showWarnings = FALSE)
+font_copy_ok <- file.copy(
+  from = source_fonts,
+  to = docs_font_dir,
+  overwrite = TRUE,
   copy.date = TRUE
 )
-base::file.create(base::file.path('docs', '.nojekyll'))
-base::stopifnot(base::file.exists('docs/index.html'))
+if (!all(font_copy_ok)) {
+  stop('One or more tutorial font files could not be copied to docs.', call. = FALSE)
+}
+
+if (!file.create('docs/.nojekyll')) {
+  stop('Could not create docs/.nojekyll.', call. = FALSE)
+}
+
+message('Rendered tutorial site: docs/index.html')

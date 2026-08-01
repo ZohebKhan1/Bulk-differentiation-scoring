@@ -1,0 +1,487 @@
+---
+title: "Differentiation timing score"
+description: "PCA-based scoring of differentiation timing from bulk RNA-seq time-course data."
+site: bookdown::bookdown_site
+documentclass: book
+---
+
+```{r meta-versions, include=FALSE}
+tutorial_dependency_packages <- c(
+  'AnnotationDbi',
+  'bookdown',
+  'circlize',
+  'clusterProfiler',
+  'ComplexHeatmap',
+  'DESeq2',
+  'edgeR',
+  'ggplot2',
+  'ggrepel',
+  'knitr',
+  'org.Hs.eg.db',
+  'patchwork',
+  'ragg',
+  'scales',
+  'svglite',
+  'systemfonts',
+  'viridis',
+  'yaml'
+)
+missing_tutorial_packages <- tutorial_dependency_packages[
+  !vapply(
+    tutorial_dependency_packages,
+    requireNamespace,
+    logical(1),
+    quietly = TRUE
+  )
+]
+if (length(missing_tutorial_packages) > 0L) {
+  stop(
+    'Missing tutorial packages: ',
+    paste(missing_tutorial_packages, collapse = ', '),
+    '.',
+    call. = FALSE
+  )
+}
+tutorial_dependency_text <- paste(
+  sprintf(
+    '%s %s',
+    tutorial_dependency_packages,
+    vapply(
+      tutorial_dependency_packages,
+      function(package_name) as.character(utils::packageVersion(package_name)),
+      character(1)
+    )
+  ),
+  collapse = '; '
+)
+tutorial_bioc_version <- if (requireNamespace('BiocManager', quietly = TRUE)) {
+  as.character(BiocManager::version())
+} else {
+  'not available'
+}
+```
+
+<div class="tutorial-title-block">
+<h1 class="title">Differentiation timing score</h1>
+<div class="tutorial-subtitle">PCA-based scoring of differentiation timing from bulk RNA-seq time-course data</div>
+
+<div class="tutorial-meta-block">
+<div><span>Author:</span> Zoheb Khan</div>
+<div><span>Created:</span> 2025-08-29</div>
+<div><span>Modified:</span> 2026-08-01</div>
+<div><span>Compiled:</span> `r format(Sys.Date(), '%Y-%m-%d')`</div>
+<div><span>Environment:</span> R `r as.character(getRversion())`; Bioconductor `r tutorial_bioc_version`</div>
+<div><span>Dependencies:</span> `r tutorial_dependency_text`</div>
+<div><span>Source:</span> <a href="https://github.com/ZohebKhan1/pca-maturation-scoring">github.com/ZohebKhan1/pca-maturation-scoring</a></div>
+</div>
+</div>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = 'center'
+)
+
+project_root <- normalizePath(
+  if (file.exists('../scripts/01_build_tutorial_objects.R')) '..' else '.',
+  mustWork = TRUE
+)
+knitr::opts_knit$set(root.dir = project_root)
+
+local({
+  previous_working_directory <- setwd(project_root)
+  on.exit(setwd(previous_working_directory))
+  source(
+    'scripts/01_build_tutorial_objects.R',
+    local = knitr::knit_global()
+  )
+})
+
+tutorial_figure <- function(filename, alt_text, width = '96%') {
+  cat(
+    sprintf(
+      '<img class="tutorial-figure" src="assets/figures/%s" alt="%s" style="width:%s;">',
+      filename,
+      alt_text,
+      width
+    )
+  )
+}
+```
+
+# Introduction
+
+This tutorial develops a reference-trajectory score for bulk RNA-seq differentiation time courses. The worked example uses 192 processed GSE122380 samples spanning days 1 through 15 and 13 independent induced pluripotent stem cell lines. A reference time course defines the expression space and trajectory; each sample is then assigned a continuous position along that trajectory.
+
+The workflow has four operations:
+
+1. select temporal genes from the reference samples;
+2. train a centered, unscaled PCA model on those genes;
+3. join ordered day centroids into a piecewise-linear trajectory; and
+4. project samples to their nearest position on that finite trajectory.
+
+The maintained analysis is in `scripts/01_build_tutorial_objects.R`. The reusable scorer is `functions/score_differentiation_timing.R`. The tutorial source lives only in `tutorial/`; `docs/` is the generated GitHub Pages site.
+
+## Reuse the scorer
+
+The scorer assumes that temporal genes and normalized expression values have already been defined. It trains the reference PCA and day-centroid polyline, projects all supplied samples into that fixed space, and returns predicted time, a normalized differentiation score, and projection-distance diagnostics. It does not select genes, normalize counts, draw figures, or write files.
+
+```{r download-scoring-function, eval=FALSE, echo=TRUE}
+base_url <- paste0(
+  'https://raw.githubusercontent.com/ZohebKhan1/',
+  'pca-maturation-scoring/main/functions'
+)
+
+download.file(
+  paste0(base_url, '/score_differentiation_timing.R'),
+  'score_differentiation_timing.R'
+)
+source('score_differentiation_timing.R')
+```
+
+The primary inputs are:
+
+- `expression_matrix`: normalized expression, with unique gene IDs in rows and unique sample IDs in columns;
+- `metadata`: one row per expression sample;
+- `temporal_genes`: gene IDs selected independently of the samples being evaluated;
+- `sample_id_col` and `time_col`: metadata columns containing sample IDs and numeric reference times;
+- `reference_col` and `reference_values`: optional metadata fields that distinguish training samples from samples to score; and
+- `n_pcs`: the retained PCA dimensions used for projection, set to three here.
+
+The output list contains `scores`, `pca_coordinates`, `pca_fit`, `centroid_polyline`, retained `temporal_genes`, and the `reference_time_range`. Because projection is clipped to finite centroid-to-centroid segments, predicted times and normalized scores are bounded by the first and last reference timepoints. A score outside 0 to 1 is therefore not part of this implementation’s contract.
+
+# Data and scope
+
+The example uses [GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380), an iPSC-derived cardiomyocyte differentiation bulk RNA-seq time course reported by Strober, Elorbany, Rhodes and colleagues. The repository tracks aligned sample metadata, a raw-count matrix, and a variance-stabilized expression matrix. The active input contains no perturbation samples; all 192 samples define the full reference trajectory.
+
+The tracked RDS files are the reproducible starting point for this repository. The raw-read acquisition, QC, alignment, quantification, filtering, and construction of the tracked VST matrix are not included, so this tutorial does not claim end-to-end reproducibility from FASTQ files. Input dimensions and checksums are recorded in the repository’s `DATA.md`.
+
+```{r sample-summary-table, echo=FALSE}
+sample_summary <- stats::aggregate(
+  sample_id ~ day_numeric,
+  data = meta,
+  FUN = length
+)
+cell_line_summary <- stats::aggregate(
+  cell_line ~ day_numeric,
+  data = meta,
+  FUN = function(cell_lines) length(unique(cell_lines))
+)
+data_summary <- merge(sample_summary, cell_line_summary, by = 'day_numeric')
+names(data_summary) <- c('day', 'Total samples', 'Unique cell lines')
+data_summary <- data_summary[order(data_summary$day), ]
+
+summary_table <- rbind(
+  Samples = data_summary[['Total samples']],
+  `Cell lines` = data_summary[['Unique cell lines']]
+)
+summary_table <- data.frame(
+  Metric = rownames(summary_table),
+  summary_table,
+  row.names = NULL,
+  check.names = FALSE
+)
+names(summary_table)[-1] <- paste0('D', data_summary$day)
+
+knitr::kable(
+  summary_table,
+  format = 'html',
+  table.attr = 'class="sample-summary-table"',
+  align = c('l', rep('r', ncol(summary_table) - 1L)),
+  caption = 'Samples and represented cell lines by differentiation day.'
+)
+```
+
+The overview below shows global time-course structure and the corresponding day-collapsed expression similarity.
+
+```{r reference-pca-and-correlation, echo=FALSE, results='asis'}
+cat('<div id="fig-reference-overview" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_reference_pca_and_day_correlation.svg',
+  'PCA of the reference samples and a day-level expression correlation heatmap.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 1.</strong> Experimental structure of the GSE122380 time course. <strong>a.</strong> PCA using the top 10% most variable VST genes, colored by differentiation day. <strong>b.</strong> Pearson correlation between day-mean profiles from the same variable-gene set.</div>
+
+# Method
+
+## Select temporal genes
+
+Genes must pass three sequential filters. First, a gene’s maximum day-mean TMM-normalized CPM must be at least 10. Second, a DESeq2 likelihood-ratio test (LRT) must have a Benjamini-Hochberg adjusted p-value below \(10^{-7}\). Third, the range of day-mean VST expression must be at least 0.6.
+
+The LRT compares a full count model containing cell line and categorical differentiation day with a reduced model containing cell line alone:
+
+\[
+\mathrm{full}: y \sim \mathrm{cell\ line} + \mathrm{day},
+\qquad
+\mathrm{reduced}: y \sim \mathrm{cell\ line}.
+\tag{1}
+\]
+
+The likelihood-ratio statistic is
+
+\[
+\mathrm{LR} = 2\left(\ell_{\mathrm{full}} - \ell_{\mathrm{reduced}}\right),
+\tag{2}
+\]
+
+where \(\ell\) is the maximized model log likelihood. This tests whether categorical day improves fit after accounting for cell-line structure; it does not assume a linear expression trend.
+
+```{r temporal-filter-code, eval=FALSE, echo=TRUE}
+source('functions/select_temporal_genes.R')
+
+temporal_selection <- select_temporal_genes(
+  counts = counts,
+  vst = vst,
+  metadata = meta,
+  expression_cpm_cutoff = 10,
+  lrt_padj_cutoff = 1e-7,
+  vst_dynamic_range_cutoff = 0.6
+)
+temporal_genes <- temporal_selection$temporal_genes
+```
+
+```{r lrt-summary-table, echo=FALSE}
+lrt_display <- data.frame(
+  Metric = c(
+    'Genes in the aligned count/VST input',
+    'Genes with maximum day-mean TMM CPM >= 10',
+    'Genes tested by DESeq2 LRT',
+    'Genes passing LRT adjusted p-value < 1e-7',
+    'Genes passing day-mean VST range >= 0.6',
+    'Temporal genes used for PCA and scoring',
+    'Interpretive heatmap clusters'
+  ),
+  Value = c(
+    format(lrt_summary$total_expressed_genes, big.mark = ','),
+    format(lrt_summary$genes_passing_day_mean_tmm_cpm, big.mark = ','),
+    format(lrt_summary$genes_tested_by_lrt, big.mark = ','),
+    format(lrt_summary$genes_passing_lrt_padj, big.mark = ','),
+    format(lrt_summary$genes_passing_vst_dynamic_range, big.mark = ','),
+    format(lrt_summary$genes_passing_vst_dynamic_range, big.mark = ','),
+    '4'
+  ),
+  stringsAsFactors = FALSE
+)
+knitr::kable(
+  lrt_display,
+  format = 'html',
+  table.attr = 'class="sample-summary-table"',
+  align = c('l', 'r'),
+  caption = 'Sequential temporal-gene filtering.'
+)
+```
+
+The heatmap displays the first 1,500 final temporal genes after ordering the LRT results by adjusted p-value and then raw p-value. PCA, scoring, and validation use the complete temporal set rather than this display subset.
+
+```{r temporal-heatmap, echo=FALSE, results='asis'}
+cat('<div id="fig-temporal-heatmap" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_temporal_heatmap.png',
+  'Heatmap of 1500 temporal genes across all samples, ordered by differentiation day.',
+  '62%'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 2.</strong> Z-scored VST expression for the 1,500 displayed temporal genes. Rows are split into four descriptive clusters; columns are ordered by day.</div>
+
+The k=4 partition is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those 1,500 genes as the enrichment universe. These tests are not part of the scoring algorithm.
+
+```{r temporal-clusters, echo=FALSE, results='asis'}
+cat('<div id="fig-temporal-clusters" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_temporal_clusters.svg',
+  'Four temporal expression clusters with their enriched GO biological processes.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 3.</strong> Descriptive temporal clusters and GO enrichment for the 1,500 heatmap genes. Each row pairs a cluster trajectory with its top enriched GO Biological Process terms.</div>
+
+## Train the PCA reference space
+
+Let \(X \in \mathbb{R}^{n \times p}\) be normalized reference expression for \(n\) samples and \(p\) temporal genes. PCA is trained after centering each gene without variance scaling. If \(\mathbf{x}_i\) is sample \(i\), \(\boldsymbol{\mu}\) is the reference gene-mean vector, and \(W_k\) contains the retained loading vectors, then
+
+\[
+\mathbf{z}_i = (\mathbf{x}_i - \boldsymbol{\mu}) W_k.
+\tag{3}
+\]
+
+The scorer retains three PCs. PC1 is flipped for figure readability when needed so it increases with differentiation day; a sign flip does not alter Euclidean projections or scores.
+
+```{r pca-day, echo=FALSE, results='asis'}
+cat('<div id="fig-pca-day" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_pca_day.svg',
+  'PCA and PC1 versus day for all temporal genes and early and late cluster subsets.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 4.</strong> PCA and PC1-day relationships for the full temporal set and two descriptive cluster subsets. C1+C2 and C3+C4 are interpretive subsets, not alternative primary models.</div>
+
+The loading analysis annotates the largest PC1 and PC2 loadings and tests the top 500 genes in each PC1 direction for GO enrichment against the full temporal-gene universe.
+
+```{r pc1-validation, echo=FALSE, results='asis'}
+cat('<div id="fig-pc1-validation" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_pc1_validation.svg',
+  'Top PCA loading genes and GO enrichment for positive and negative PC1 loadings.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 5.</strong> PCA loading interpretation. <strong>a-b.</strong> The ten largest positive and negative PC1 and PC2 loading genes. Ambiguous Ensembl-to-symbol mappings retain the Ensembl ID. <strong>c-d.</strong> GO enrichment among the 500 strongest negative and positive PC1 loadings.</div>
+
+## Fit and score the day-centroid polyline
+
+For each ordered reference day \(t_j\), the mean PCA coordinate is
+
+\[
+\mathbf{c}_j = \frac{1}{|I_j|}\sum_{i \in I_j}\mathbf{z}_i,
+\qquad j = 1,\ldots,m.
+\tag{4}
+\]
+
+The ordered centroids define a piecewise-linear trajectory. Segment \(j\) begins at \(\mathbf{a}_j=\mathbf{c}_j\), ends at \(\mathbf{b}_j=\mathbf{c}_{j+1}\), and has direction \(\mathbf{v}_j=\mathbf{b}_j-\mathbf{a}_j\). For sample \(i\), the fraction along segment \(j\) is
+
+\[
+\alpha_{ij} =
+\operatorname{clip}_{[0,1]}
+\left(
+\frac{\langle \mathbf{z}_i-\mathbf{a}_j,\mathbf{v}_j \rangle}
+{\langle \mathbf{v}_j,\mathbf{v}_j \rangle}
+\right).
+\tag{5}
+\]
+
+The closest finite-segment projection is selected:
+
+\[
+\mathbf{q}_{ij}=\mathbf{a}_j+\alpha_{ij}\mathbf{v}_j,
+\qquad
+j^\ast=\underset{j}{\operatorname{argmin}}
+\left\lVert\mathbf{z}_i-\mathbf{q}_{ij}\right\rVert^2.
+\tag{6}
+\]
+
+The corresponding predicted time and normalized score are
+
+\[
+\widehat{t}_i=t_{j^\ast}+\alpha_{ij^\ast}(t_{j^\ast+1}-t_{j^\ast}),
+\qquad
+s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}.
+\tag{7}
+\]
+
+Zero-length centroid segments are omitted. The method assumes that ordered centroids describe a meaningful trajectory in retained PC space. A self-approaching or folded trajectory can make nearest-segment assignments biologically ambiguous; squared projection distance should therefore be inspected when adapting the scorer.
+
+```{r timing-score-code, eval=FALSE, echo=TRUE}
+source('functions/score_differentiation_timing.R')
+
+timing_fit <- score_differentiation_timing(
+  expression_matrix = vst,
+  metadata = meta,
+  temporal_genes = temporal_genes,
+  sample_id_col = 'sample_id',
+  time_col = 'day_numeric',
+  n_pcs = 3
+)
+head(timing_fit$scores)
+```
+
+```{r timing-polyline, echo=FALSE, results='asis'}
+cat('<div id="fig-timing-polyline" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_timing_polyline.svg',
+  'Samples and the ordered day-centroid polyline in the first two principal components.',
+  '86%'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 6.</strong> Differentiation trajectory in reference PCA space. Black points are day centroids; arrows connect them in day order. The day 1 and day 15 centroids anchor scores 0 and 1.</div>
+
+The next figure projects the reference samples back onto their fitted trajectory. This is a descriptive calibration view, not out-of-sample validation. The gray band is the day-level mean score plus or minus one standard deviation.
+
+```{r score-by-day, echo=FALSE, results='asis'}
+cat('<div id="fig-score-by-day" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_score_by_day.svg',
+  'Differentiation timing scores across observed differentiation days.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 7.</strong> Reference-sample differentiation timing scores by observed day. Dashed lines mark the bounded reference endpoints at 0 and 1.</div>
+
+# Internal cell-line cross-validation
+
+Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate.
+
+All 13 held-out lines contribute to the summary metrics and aggregate plots. Line `19190` is omitted only from the per-line panel grid so the display remains a balanced 3-by-4 layout.
+
+```{r loo-summary-table, echo=FALSE}
+loo_display_summary <- loo_accuracy_summary
+names(loo_display_summary) <- c('Metric', 'Value')
+knitr::kable(
+  loo_display_summary,
+  format = 'html',
+  table.attr = 'class="sample-summary-table"',
+  align = c('l', 'r'),
+  caption = 'Leave-one-cell-line-out validation summary.'
+)
+```
+
+```{r loo-line-predictions, echo=FALSE, results='asis'}
+cat('<div id="fig-loo-line-predictions" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_loo_line_predictions.svg',
+  'Predicted versus observed day trajectories for twelve displayed held-out cell lines.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 8.</strong> Held-out predictions for 12 displayed cell lines. Each panel reports Pearson \(r\) and its square for that line; neither quantity is a predictive \(R^2\) statistic.</div>
+
+```{r loo-summary-figure, echo=FALSE, results='asis'}
+cat('<div id="fig-loo-summary" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_loo_summary.svg',
+  'Predicted versus observed differentiation day for every held-out sample.'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 9.</strong> Predicted versus observed differentiation day for all held-out samples. The dashed line is identity; the solid line is an ordinary least-squares summary.</div>
+
+For held-out sample \(i\), absolute prediction error is
+
+\[
+e_i=\left|\widehat{t}_i-t_i\right|.
+\]
+
+The number above each boxplot is the lower of the mean and median absolute error at that timepoint. This nonstandard annotation is retained to match the established tutorial display; the distribution itself and the conventional overall mean and median absolute errors should be used for interpretation.
+
+```{r loo-timepoint-accuracy, echo=FALSE, results='asis'}
+cat('<div id="fig-loo-timepoint-accuracy" class="figure-anchor"></div>')
+tutorial_figure(
+  'GSE122380_loo_timepoint_accuracy.svg',
+  'Absolute held-out prediction error by observed differentiation day.',
+  '72%'
+)
+```
+
+<div class="tutorial-figure-caption"><strong>Figure 10.</strong> Absolute held-out prediction error by day. Lower values indicate closer timing predictions.</div>
+
+# Interpretation and adaptation
+
+The score estimates position along this reference trajectory. It is not, by itself, a measure of cell quality, differentiation efficiency, lineage identity, potency, or biological directionality. For a new study, temporal genes and all PCA/polyline parameters should be trained on an appropriate reference cohort, while test samples should be projected without refitting the reference model. Gene identifiers, normalization, feature support, batch structure, reference-time coverage, and projection distance require explicit checks before comparing scores across datasets.
+
+# References
+
+1. Love MI, Huber W, Anders S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology*. 2014;15:550.
+2. Strober BJ, Elorbany R, Rhodes K, et al. Dynamic genetic regulation of gene expression during cellular differentiation. *Science*. 2019;364:1287-1290.
+3. Xie Y. *bookdown: Authoring Books and Technical Documents with R Markdown*. 2016.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```
