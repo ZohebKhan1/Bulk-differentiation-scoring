@@ -170,16 +170,20 @@ correlation shown in the upper left.
 
 ### Figure 9. Leave-one-line-out validation summary
 
-Panel a shows predicted versus actual differentiation day for held-out samples.
-Panel b shows residuals, calculated as predicted day minus actual day.
+Predicted versus actual differentiation day for held-out samples.
 
 ![Figure 9](report/assets/figures/GSE122380_loo_summary.png)
 
-### Figure 10. Leave-one-line-out prediction error by day
+### Figure 10. Leave-one-line-out prediction error by differentiation day
+
+For held-out sample \(i\), absolute prediction error is calculated as
+\(e_i = |\hat{t}\_i - t_i|\), where \(\hat{t}\_i\) is the polyline-predicted
+differentiation day and \(t_i\) is the observed differentiation day.
 
 Boxplots show the absolute difference between predicted and actual
 differentiation day among held-out samples at each timepoint. Lower values
-indicate closer predictions.
+indicate closer predictions. The number above each boxplot is the lower of the
+mean and median absolute prediction error for that timepoint.
 
 ![Figure 10](report/assets/figures/GSE122380_loo_timepoint_accuracy.png)
 

@@ -45,6 +45,7 @@ tutorial_bioc_version <- if (base::requireNamespace("BiocManager", quietly = TRU
 <div class="tutorial-meta-block">
 <div><span>Authors:</span> Zoheb Khan [aut, cre]</div>
 <div><span>Version:</span> 0.0.0.9000</div>
+<div><span>Created:</span> August 29, 2025</div>
 <div><span>Modified:</span> 2026-07-06</div>
 <div><span>Compiled:</span> `r base::format(base::Sys.Date(), "%Y-%m-%d")`</div>
 <div><span>Environment:</span> R version `r base::as.character(base::getRversion())`</div>
@@ -459,7 +460,17 @@ if (has_loo_validation) {
 }
 ```
 
-<div class="tutorial-figure-caption"><strong>Figure 9.</strong> Leave-one-line-out validation summary. <strong>a.</strong> Predicted versus actual differentiation day for held-out samples. <strong>b.</strong> Residuals, calculated as predicted day minus actual day.</div>
+<div class="tutorial-figure-caption"><strong>Figure 9.</strong> Leave-one-line-out predicted versus actual differentiation day for held-out samples.</div>
+
+The absolute prediction error for held-out sample \(i\) is
+
+\[
+e_i = \left|\hat{t}_i - t_i\right|,
+\]
+
+where \(\hat{t}_i\) is the polyline-predicted differentiation day and \(t_i\) is
+the observed differentiation day. The number above each boxplot is the lower of
+the mean and median absolute prediction error for that timepoint.
 
 ```{r loo-timepoint-accuracy, echo=FALSE, results='asis', out.width='72%', fig.align='center'}
 if (has_loo_validation) {

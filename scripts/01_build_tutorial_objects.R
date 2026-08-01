@@ -2254,15 +2254,7 @@ if (has_loo_validation) {
       plot.margin = ggplot2::margin(8, 6, 8, 8)
     )
 
-  p_loo_summary <- (p_loo_predicted_vs_actual | p_loo_residual_boxplots) +
-    patchwork::plot_layout(widths = base::c(1, 1)) +
-    patchwork::plot_annotation(
-      tag_levels = 'a',
-      theme = ggplot2::theme(
-        text = ggplot2::element_text(family = figure_family, color = 'black'),
-        plot.tag = ggplot2::element_text(face = 'bold', family = panel_tag_family, size = fs(8))
-      )
-    )
+  p_loo_summary <- p_loo_predicted_vs_actual
 
   loo_timepoint_error <- loo_polyline_all
   loo_timepoint_error$absolute_error <- base::abs(loo_timepoint_error$residual)
@@ -2270,6 +2262,29 @@ if (has_loo_validation) {
     loo_timepoint_error$actual_day,
     levels = days
   )
+  loo_timepoint_label <- stats::aggregate(
+    absolute_error ~ actual_day_factor,
+    data = loo_timepoint_error,
+    FUN = function(error) {
+      base::min(base::mean(error), stats::median(error))
+    }
+  )
+  loo_timepoint_y <- stats::aggregate(
+    absolute_error ~ actual_day_factor,
+    data = loo_timepoint_error,
+    FUN = function(error) {
+      grDevices::boxplot.stats(error)$stats[5]
+    }
+  )
+  names(loo_timepoint_label)[2] <- 'error_label'
+  names(loo_timepoint_y)[2] <- 'label_y'
+  loo_timepoint_label <- base::merge(
+    loo_timepoint_label,
+    loo_timepoint_y,
+    by = 'actual_day_factor',
+    sort = FALSE
+  )
+  loo_timepoint_label$label <- base::sprintf('%.1f', loo_timepoint_label$error_label)
 
   p_loo_timepoint_accuracy <- ggplot2::ggplot(
     loo_timepoint_error,
@@ -2290,7 +2305,15 @@ if (has_loo_validation) {
       fill = '#BDBDBD',
       color = 'black'
     ) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = base::c(0, 0.08))) +
+    ggplot2::geom_text(
+      data = loo_timepoint_label,
+      ggplot2::aes(actual_day_factor, label_y, label = label),
+      inherit.aes = FALSE,
+      vjust = -0.45,
+      family = figure_family,
+      size = gfs(4.7)
+    ) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = base::c(0, 0.16))) +
     ggplot2::labs(
       x = 'Actual differentiation day',
       y = 'Absolute prediction error (days)'
