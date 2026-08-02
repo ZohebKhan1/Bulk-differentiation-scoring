@@ -94,8 +94,8 @@ cluster_go_cache_path = 'tmp/GSE122380_temporal_cluster_go_k4.rds'
 reference_overview_figure_width = 7.20
 reference_overview_figure_height = 3.81
 
-temporal_heatmap_figure_width = 5.45
-temporal_heatmap_figure_height = 3.35
+temporal_heatmap_figure_width = 7.20
+temporal_heatmap_figure_height = 4.42
 
 temporal_clusters_figure_width = 7.20
 temporal_clusters_figure_height = 8.52
@@ -118,8 +118,8 @@ loo_cell_line_predictions_figure_height = 5.75
 loo_summary_figure_width = 7.20
 loo_summary_figure_height = 3.15
 
-loo_timepoint_accuracy_figure_width = 5.40
-loo_timepoint_accuracy_figure_height = 2.75
+loo_timepoint_accuracy_figure_width = 6.20
+loo_timepoint_accuracy_figure_height = 3.10
 
 figure_dpi = 600
 figure_family = 'GSE122380 Nimbus Sans'
@@ -1397,7 +1397,7 @@ p_lrt_heatmap <- ComplexHeatmap::Heatmap(
   column_title = paste0('D', levels(heatmap_metadata$day_factor)),
   column_title_gp = grid::gpar(
     fontsize = 15,
-    fontface = 'bold',
+    fontface = 'plain',
     fontfamily = figure_family
   ),
   heatmap_legend_param = list(
@@ -2034,33 +2034,29 @@ loo_timepoint_errors$actual_day_factor <- factor(
   loo_timepoint_errors$actual_day,
   levels = days
 )
-loo_timepoint_labels <- stats::aggregate(
-  absolute_error ~ actual_day_factor,
-  data = loo_timepoint_errors,
-  FUN = function(error) {
-    min(mean(error), stats::median(error))
-  }
+loo_timepoint_summary <- do.call(
+  rbind,
+  lapply(days, function(day_value) {
+    day_errors <- loo_timepoint_errors$absolute_error[
+      loo_timepoint_errors$actual_day == day_value
+    ]
+    data.frame(
+      actual_day_factor = factor(day_value, levels = days),
+      mean_absolute_error = mean(day_errors),
+      sd_absolute_error = stats::sd(day_errors)
+    )
+  })
 )
-loo_timepoint_label_positions <- stats::aggregate(
-  absolute_error ~ actual_day_factor,
-  data = loo_timepoint_errors,
-  FUN = function(error) {
-    grDevices::boxplot.stats(error)$stats[5]
-  }
+loo_timepoint_summary$lower_error <- pmax(
+  0,
+  loo_timepoint_summary$mean_absolute_error - loo_timepoint_summary$sd_absolute_error
 )
-names(loo_timepoint_labels)[2] <- 'error_label'
-names(loo_timepoint_label_positions)[2] <- 'label_y'
-loo_timepoint_labels <- merge(
-  loo_timepoint_labels,
-  loo_timepoint_label_positions,
-  by = 'actual_day_factor',
-  sort = FALSE
-)
-loo_timepoint_labels$label <- sprintf('%.1f', loo_timepoint_labels$error_label)
+loo_timepoint_summary$upper_error <-
+  loo_timepoint_summary$mean_absolute_error + loo_timepoint_summary$sd_absolute_error
 
 p_loo_timepoint_accuracy <- ggplot2::ggplot(
-  loo_timepoint_errors,
-  ggplot2::aes(actual_day_factor, absolute_error)
+  loo_timepoint_summary,
+  ggplot2::aes(actual_day_factor, mean_absolute_error)
 ) +
   ggplot2::geom_hline(
     yintercept = 0,
@@ -2068,24 +2064,19 @@ p_loo_timepoint_accuracy <- ggplot2::ggplot(
     linewidth = 0.22,
     linetype = 'dashed'
   ) +
-  ggplot2::geom_boxplot(
-    width = 0.38,
-    outlier.shape = NA,
-    linewidth = 0.30,
-    alpha = 0.70,
-    staplewidth = 0.3,
-    fill = '#BDBDBD',
-    color = 'black'
+  ggplot2::geom_col(
+    width = 0.58,
+    fill = '#5F89A9',
+    color = '#294B63',
+    linewidth = 0.28
   ) +
-  ggplot2::geom_text(
-    data = loo_timepoint_labels,
-    ggplot2::aes(actual_day_factor, label_y, label = label),
-    inherit.aes = FALSE,
-    vjust = -0.45,
-    family = figure_family,
-    size = text_size(4.7)
+  ggplot2::geom_errorbar(
+    ggplot2::aes(ymin = lower_error, ymax = upper_error),
+    width = 0.20,
+    linewidth = 0.32,
+    color = '#17212B'
   ) +
-  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.16))) +
+  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.08))) +
   ggplot2::labs(
     x = 'Actual differentiation day',
     y = 'Absolute prediction error (days)'

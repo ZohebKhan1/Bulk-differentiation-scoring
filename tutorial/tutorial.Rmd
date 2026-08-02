@@ -127,7 +127,7 @@ The example uses [GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=
 
 The tracked RDS files are the reproducible starting point for this repository. The raw-read acquisition, QC, alignment, quantification, filtering, and construction of the tracked VST matrix are not included, so this tutorial does not claim end-to-end reproducibility from FASTQ files. Input dimensions and checksums are recorded in the repository’s `DATA.md`.
 
-```{r sample-summary-table, echo=FALSE}
+```{r sample-summary-table, echo=FALSE, results='asis'}
 sample_summary <- stats::aggregate(
   sample_id ~ day_numeric,
   data = metadata,
@@ -154,6 +154,7 @@ summary_table <- data.frame(
 )
 names(summary_table)[-1] <- paste0('D', data_summary$day)
 
+cat('<div class="table-scroll" role="region" aria-label="Samples and cell lines by differentiation day" tabindex="0">')
 knitr::kable(
   summary_table,
   format = 'html',
@@ -161,6 +162,7 @@ knitr::kable(
   align = c('l', rep('r', ncol(summary_table) - 1L)),
   caption = 'Samples and represented cell lines by differentiation day.'
 )
+cat('</div>')
 ```
 
 The overview below shows global time-course structure and the corresponding day-collapsed expression similarity.
@@ -182,14 +184,26 @@ tutorial_figure(
 Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.
 
 ```{=html}
-<div class="mermaid temporal-filter-diagram">
+<div class="temporal-filter-workflow">
+  <div class="mermaid temporal-filter-diagram">
 flowchart TB
-    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]
-    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]
-    vst["VST<br/>day-mean range ≥ 0.6"]
-    temporal["Temporal genes"]
+    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]:::pre_filter
+    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]:::significance
+    vst["VST<br/>day-mean range ≥ 0.6"]:::effect_size
+    temporal["Temporal genes"]:::output
 
     cpm --> lrt --> vst --> temporal
+
+    classDef pre_filter fill:#E5F0FA,stroke:#4D7EA8,stroke-width:1.25px,color:#17324D
+    classDef significance fill:#F1EAF7,stroke:#8B63A6,stroke-width:1.25px,color:#342044
+    classDef effect_size fill:#E2F2EC,stroke:#3E8A70,stroke-width:1.25px,color:#163F34
+    classDef output fill:#F3F5F7,stroke:#64748B,stroke-width:1.25px,color:#1F2937
+  </div>
+  <ol class="workflow-step-legend" aria-label="Temporal-gene filtering workflow steps">
+    <li><span class="workflow-step-number">(1)</span><span>Expression pre-filtering</span></li>
+    <li><span class="workflow-step-number">(2)</span><span>Temporal expression significance</span></li>
+    <li><span class="workflow-step-number">(3)</span><span>Effect size filtering</span></li>
+  </ol>
 </div>
 ```
 
@@ -234,15 +248,13 @@ lrt_display <- data.frame(
     'Genes in the aligned count/VST input',
     'Genes with maximum day-mean TMM CPM >= 10',
     'Genes passing LRT adjusted p-value < 1e-7',
-    'Genes passing all filters and used for scoring',
-    'Interpretive heatmap clusters'
+    'Genes passing all filters and used for scoring'
   ),
   Value = c(
     format(lrt_summary$input_genes, big.mark = ','),
     format(lrt_summary$genes_passing_day_mean_tmm_cpm, big.mark = ','),
     format(lrt_summary$genes_passing_lrt_padj, big.mark = ','),
-    format(lrt_summary$genes_passing_all_filters, big.mark = ','),
-    '4'
+    format(lrt_summary$genes_passing_all_filters, big.mark = ',')
   ),
   stringsAsFactors = FALSE
 )
@@ -262,11 +274,9 @@ cat('<div id="fig-temporal-heatmap" class="figure-anchor"></div>')
 tutorial_figure(
   'GSE122380_temporal_heatmap.png',
   'Heatmap of 1500 temporal genes across all samples, ordered by differentiation day.',
-  '62%'
+  '92%'
 )
 ```
-
-<div class="tutorial-figure-caption"><strong>Figure 2.</strong> Z-scored VST expression for the 1,500 displayed temporal genes. Rows are split into four descriptive clusters; columns are ordered by day.</div>
 
 The four-cluster partition uses Ward-D2 hierarchical clustering of Euclidean distances between robust-LOESS-smoothed, re-standardized day-mean profiles. It is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those genes as the enrichment universe. These tests are not part of the scoring algorithm.
 
@@ -360,9 +370,9 @@ Zero-length centroid segments are omitted. The method assumes that ordered centr
 source('functions/score_differentiation_timing.R')
 
 timing_fit <- score_differentiation_timing(
-  expression_matrix = vst,
-  metadata = metadata,
-  temporal_genes = temporal_genes,
+  expression_matrix = vst,             # normalized gene expression (vst)
+  metadata = metadata,                  # sample metadata sheet
+  temporal_genes = temporal_genes,      # temporally variable genes identified in step 3
   sample_id_col = 'sample_id',
   time_col = 'day_numeric',
   n_pcs = analysis_params$timing_score$n_pcs
@@ -437,14 +447,14 @@ For held-out sample \(i\), absolute prediction error is
 e_i=\left|\widehat{t}_i-t_i\right|.
 \]
 
-The number above each boxplot is the lower of the mean and median absolute error at that timepoint. This nonstandard annotation is retained to match the established tutorial display; the distribution itself and the conventional overall mean and median absolute errors should be used for interpretation.
+Bars show the mean absolute held-out prediction error at each observed day. Error bars show one standard deviation across held-out samples at that day.
 
 ```{r loo-timepoint-accuracy, echo=FALSE, results='asis'}
 cat('<div id="fig-loo-timepoint-accuracy" class="figure-anchor"></div>')
 tutorial_figure(
   'GSE122380_loo_timepoint_accuracy.svg',
-  'Absolute held-out prediction error by observed differentiation day.',
-  '72%'
+  'Mean absolute held-out prediction error by observed differentiation day, with standard-deviation error bars.',
+  '82%'
 )
 ```
 

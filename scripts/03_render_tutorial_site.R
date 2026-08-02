@@ -11,7 +11,7 @@
 # - tutorial/_output.yml
 # - tutorial/style.css
 # - tutorial/after-body.html
-# - tutorial/assets/fonts/*.otf
+# - tutorial/assets/fonts/*.{otf,ttf}
 # - scripts/01_build_tutorial_objects.R
 # - tmp/GSE122380_leave_one_cell_line_out_validation.rds
 #
@@ -43,7 +43,8 @@ source_fonts <- file.path(
     'NimbusSans-Bold.otf',
     'NimbusSans-BoldItalic.otf',
     'NimbusSans-Italic.otf',
-    'NimbusSans-Regular.otf'
+    'NimbusSans-Regular.otf',
+    'FiraCode-Retina.ttf'
   )
 )
 

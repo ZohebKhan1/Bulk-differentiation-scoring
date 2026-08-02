@@ -248,6 +248,7 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <h1><span class="header-section-number">2</span> Data and scope<a href="#data-and-scope" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <p>The example uses <a href="https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380">GSE122380</a>, an iPSC-derived cardiomyocyte differentiation bulk RNA-seq time course reported by Strober, Elorbany, Rhodes and colleagues. The repository tracks aligned sample metadata, a raw-count matrix, and a variance-stabilized expression matrix. The active input contains no perturbation samples; all 192 samples define the full reference trajectory.</p>
 <p>The tracked RDS files are the reproducible starting point for this repository. The raw-read acquisition, QC, alignment, quantification, filtering, and construction of the tracked VST matrix are not included, so this tutorial does not claim end-to-end reproducibility from FASTQ files. Input dimensions and checksums are recorded in the repository’s <code>DATA.md</code>.</p>
+<div class="table-scroll" role="region" aria-label="Samples and cell lines by differentiation day" tabindex="0">
 <table class="sample-summary-table">
 <caption>
 <span id="tab:sample-summary-table">Table 2.1: </span>Samples and represented cell lines by differentiation day.
@@ -407,6 +408,7 @@ Cell lines
 </tr>
 </tbody>
 </table>
+</div>
 <p>The overview below shows global time-course structure and the corresponding day-collapsed expression similarity.</p>
 <div id="fig-reference-overview" class="figure-anchor">
 
@@ -421,14 +423,26 @@ Cell lines
 <div id="select-temporal-genes" class="section level2 hasAnchor" number="3.1">
 <h2><span class="header-section-number">3.1</span> Select temporal genes<a href="#select-temporal-genes" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.</p>
-<div class="mermaid temporal-filter-diagram">
+<div class="temporal-filter-workflow">
+  <div class="mermaid temporal-filter-diagram">
 flowchart TB
-    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]
-    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]
-    vst["VST<br/>day-mean range ≥ 0.6"]
-    temporal["Temporal genes"]
+    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]:::pre_filter
+    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]:::significance
+    vst["VST<br/>day-mean range ≥ 0.6"]:::effect_size
+    temporal["Temporal genes"]:::output
 
     cpm --> lrt --> vst --> temporal
+
+    classDef pre_filter fill:#E5F0FA,stroke:#4D7EA8,stroke-width:1.25px,color:#17324D
+    classDef significance fill:#F1EAF7,stroke:#8B63A6,stroke-width:1.25px,color:#342044
+    classDef effect_size fill:#E2F2EC,stroke:#3E8A70,stroke-width:1.25px,color:#163F34
+    classDef output fill:#F3F5F7,stroke:#64748B,stroke-width:1.25px,color:#1F2937
+  </div>
+  <ol class="workflow-step-legend" aria-label="Temporal-gene filtering workflow steps">
+    <li><span class="workflow-step-number">(1)</span><span>Expression pre-filtering</span></li>
+    <li><span class="workflow-step-number">(2)</span><span>Temporal expression significance</span></li>
+    <li><span class="workflow-step-number">(3)</span><span>Effect size filtering</span></li>
+  </ol>
 </div>
 <p>The LRT compares a full count model containing cell line and categorical differentiation day with a reduced model containing cell line alone:</p>
 <p><span class="math display">\[
@@ -443,20 +457,20 @@ flowchart TB
 \tag{2}
 \]</span></p>
 <p>where <span class="math inline">\(\ell\)</span> is the maximized model log likelihood. This tests whether categorical day improves fit after accounting for cell-line structure; it does not assume a linear expression trend.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/select_temporal_genes.R&#39;</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>analysis_params <span class="ot">&lt;-</span> yaml<span class="sc">::</span><span class="fu">read_yaml</span>(<span class="st">&#39;config/analysis.yml&#39;</span>)</span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>temporal_gene_params <span class="ot">&lt;-</span> analysis_params<span class="sc">$</span>temporal_gene_selection</span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
-<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">counts =</span> counts,</span>
-<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">vst =</span> vst,</span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
-<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="at">expression_cpm_cutoff =</span> temporal_gene_params<span class="sc">$</span>expression_cpm_cutoff,</span>
-<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>  <span class="at">lrt_padj_cutoff =</span> temporal_gene_params<span class="sc">$</span>lrt_padj_cutoff,</span>
-<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>  <span class="at">vst_dynamic_range_cutoff =</span> temporal_gene_params<span class="sc">$</span>vst_dynamic_range_cutoff</span>
-<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a>)</span>
-<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/select_temporal_genes.R&#39;</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>analysis_params <span class="ot">&lt;-</span> yaml<span class="sc">::</span><span class="fu">read_yaml</span>(<span class="st">&#39;config/analysis.yml&#39;</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>temporal_gene_params <span class="ot">&lt;-</span> analysis_params<span class="sc">$</span>temporal_gene_selection</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">counts =</span> counts,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">vst =</span> vst,</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="at">expression_cpm_cutoff =</span> temporal_gene_params<span class="sc">$</span>expression_cpm_cutoff,</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="at">lrt_padj_cutoff =</span> temporal_gene_params<span class="sc">$</span>lrt_padj_cutoff,</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  <span class="at">vst_dynamic_range_cutoff =</span> temporal_gene_params<span class="sc">$</span>vst_dynamic_range_cutoff</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>)</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
 <table class="sample-summary-table">
 <caption>
 <span id="tab:lrt-summary-table">Table 3.1: </span>Sequential temporal-gene filtering.
@@ -504,24 +518,13 @@ Genes passing all filters and used for scoring
 8,215
 </td>
 </tr>
-<tr>
-<td style="text-align:left;">
-Interpretive heatmap clusters
-</td>
-<td style="text-align:right;">
-4
-</td>
-</tr>
 </tbody>
 </table>
 <p>The heatmap displays the first 1,500 final temporal genes after ordering the LRT results by adjusted p-value and then raw p-value. PCA, scoring, and validation use the complete temporal set rather than this display subset.</p>
 <div id="fig-temporal-heatmap" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_temporal_heatmap.png" alt="Heatmap of 1500 temporal genes across all samples, ordered by differentiation day." style="width:62%;"></p>
-<div class="tutorial-figure-caption">
-<strong>Figure 2.</strong> Z-scored VST expression for the 1,500 displayed temporal genes. Rows are split into four descriptive clusters; columns are ordered by day.
-</div>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_temporal_heatmap.png" alt="Heatmap of 1500 temporal genes across all samples, ordered by differentiation day." style="width:92%;"></p>
 <p>The four-cluster partition uses Ward-D2 hierarchical clustering of Euclidean distances between robust-LOESS-smoothed, re-standardized day-mean profiles. It is used only to interpret broad expression patterns. Cluster trajectories and GO Biological Process enrichment use the same 1,500 displayed genes, with those genes as the enrichment universe. These tests are not part of the scoring algorithm.</p>
 <div id="fig-temporal-clusters" class="figure-anchor">
 
@@ -589,17 +592,17 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 \tag{7}
 \]</span></p>
 <p>Zero-length centroid segments are omitted. The method assumes that ordered centroids describe a meaningful trajectory in retained PC space. A self-approaching or folded trajectory can make nearest-segment assignments biologically ambiguous; squared projection distance should therefore be inspected when adapting the scorer.</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/score_differentiation_timing.R&#39;</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>timing_fit <span class="ot">&lt;-</span> <span class="fu">score_differentiation_timing</span>(</span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">expression_matrix =</span> vst,</span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
-<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,</span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
-<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span>,</span>
-<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> analysis_params<span class="sc">$</span>timing_score<span class="sc">$</span>n_pcs</span>
-<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>)</span>
-<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="fu">head</span>(timing_fit<span class="sc">$</span>scores)</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/score_differentiation_timing.R&#39;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>timing_fit <span class="ot">&lt;-</span> <span class="fu">score_differentiation_timing</span>(</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">expression_matrix =</span> vst,             <span class="co"># normalized gene expression (vst)</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,                  <span class="co"># sample metadata sheet</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,      <span class="co"># temporally variable genes identified in step 3</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> analysis_params<span class="sc">$</span>timing_score<span class="sc">$</span>n_pcs</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>)</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="fu">head</span>(timing_fit<span class="sc">$</span>scores)</span></code></pre></div>
 <div id="fig-timing-polyline" class="figure-anchor">
 
 </div>
@@ -720,11 +723,11 @@ Predictions within 2 days
 <p><span class="math display">\[
 e_i=\left|\widehat{t}_i-t_i\right|.
 \]</span></p>
-<p>The number above each boxplot is the lower of the mean and median absolute error at that timepoint. This nonstandard annotation is retained to match the established tutorial display; the distribution itself and the conventional overall mean and median absolute errors should be used for interpretation.</p>
+<p>Bars show the mean absolute held-out prediction error at each observed day. Error bars show one standard deviation across held-out samples at that day.</p>
 <div id="fig-loo-timepoint-accuracy" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_timepoint_accuracy.svg" alt="Absolute held-out prediction error by observed differentiation day." style="width:72%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_timepoint_accuracy.svg" alt="Mean absolute held-out prediction error by observed differentiation day, with standard-deviation error bars." style="width:82%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 10.</strong> Absolute held-out prediction error by day. Lower values indicate closer timing predictions.
 </div>
@@ -851,25 +854,6 @@ e_i=\left|\widehat{t}_i-t_i\right|.
         link.setAttribute("rel", "noopener noreferrer");
       });
 
-    const codeBlocks = Array.from(
-      document.querySelectorAll("div.sourceCode, pre.sourceCode")
-    ).filter(function (block) {
-      return !block.closest("details.code-fold") &&
-        !(block.tagName === "PRE" && block.closest("div.sourceCode"));
-    });
-
-    codeBlocks.forEach(function (block) {
-      const details = document.createElement("details");
-      details.className = "code-fold";
-      details.open = true;
-
-      const summary = document.createElement("summary");
-      summary.textContent = "Code";
-
-      block.parentNode.insertBefore(details, block);
-      details.appendChild(summary);
-      details.appendChild(block);
-    });
   });
 </script>
 <script type="module">
@@ -881,7 +865,7 @@ e_i=\left|\widehat{t}_i-t_i\right|.
     theme: "base",
     themeVariables: {
       fontFamily: '"Latin Modern Sans", "Helvetica Neue", Helvetica, Arial, sans-serif',
-      fontSize: "16px",
+      fontSize: "13px",
       primaryColor: "#eef5fb",
       primaryTextColor: "#111827",
       primaryBorderColor: "#185f8a",
@@ -890,7 +874,7 @@ e_i=\left|\widehat{t}_i-t_i\right|.
     flowchart: {
       curve: "linear",
       nodeSpacing: 24,
-      rankSpacing: 28,
+      rankSpacing: 54,
       useMaxWidth: true
     }
   });
