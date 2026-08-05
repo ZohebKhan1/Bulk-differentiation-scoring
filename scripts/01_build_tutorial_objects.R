@@ -289,6 +289,50 @@ svg_font_faces <- function() {
   )
 }
 
+validate_svg_figure_font <- function(path) {
+  svg_lines <- readLines(path, warn = FALSE, encoding = 'UTF-8')
+  font_family_lines <- grep('font-family:', svg_lines, value = TRUE, fixed = TRUE)
+  expected_family <- sprintf('font-family: "%s"', svg_figure_family)
+
+  if (
+    length(font_family_lines) == 0L ||
+      any(!grepl(expected_family, font_family_lines, fixed = TRUE))
+  ) {
+    stop(
+      'SVG figure does not use ',
+      svg_figure_family,
+      ' exclusively: ',
+      path,
+      call. = FALSE
+    )
+  }
+
+  required_font_files <- c(
+    'NimbusSans-Regular.otf',
+    'NimbusSans-Bold.otf',
+    'NimbusSans-Italic.otf',
+    'NimbusSans-BoldItalic.otf'
+  )
+  missing_font_files <- required_font_files[
+    !vapply(
+      required_font_files,
+      function(font_file) any(grepl(font_file, svg_lines, fixed = TRUE)),
+      logical(1)
+    )
+  ]
+  if (length(missing_font_files) > 0L) {
+    stop(
+      'SVG figure is missing Nimbus Sans web-font declarations for: ',
+      paste(missing_font_files, collapse = ', '),
+      '. File: ',
+      path,
+      call. = FALSE
+    )
+  }
+
+  invisible(path)
+}
+
 save_figure_pair <- function(path_stub, plot, width, height) {
   dir.create(dirname(path_stub), recursive = TRUE, showWarnings = FALSE)
   ggplot2::ggsave(
@@ -313,6 +357,7 @@ save_figure_pair <- function(path_stub, plot, width, height) {
     bg = 'white',
     limitsize = FALSE
   )
+  validate_svg_figure_font(paste0(path_stub, '.svg'))
 }
 
 save_drawn_figure_pair <- function(path_stub, draw_fn, width, height, png_scale = 1) {
@@ -344,6 +389,7 @@ save_drawn_figure_pair <- function(path_stub, draw_fn, width, height, png_scale 
   draw_fn()
   grDevices::dev.off()
   on.exit(NULL, add = FALSE)
+  validate_svg_figure_font(paste0(path_stub, '.svg'))
 }
 
 label_ensembl_genes <- function(gene_ids) {
