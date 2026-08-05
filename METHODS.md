@@ -1,6 +1,6 @@
 # Analysis and validation decisions
 
-This file records decisions that materially affect the differentiation timing score and tutorial output. Shared numeric values are maintained in `config/analysis.yml`.
+This file records decisions that materially affect the differentiation timing score and tutorial output.
 
 ## Temporal-gene selection
 

@@ -1,7 +1,5 @@
 bookdown::gitbook:
   css: style.css
-  includes:
-    after_body: after-body.html
   split_by: "none"
   config:
     toc:

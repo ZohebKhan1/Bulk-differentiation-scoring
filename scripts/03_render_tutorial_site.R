@@ -10,7 +10,6 @@
 # - tutorial/_bookdown.yml
 # - tutorial/_output.yml
 # - tutorial/style.css
-# - tutorial/after-body.html
 # - tutorial/assets/fonts/*.{otf,ttf}
 # - scripts/01_build_tutorial_objects.R
 # - tmp/GSE122380_leave_one_cell_line_out_validation.rds
@@ -33,18 +32,23 @@ if (!requireNamespace('bookdown', quietly = TRUE)) {
 }
 
 source_font_dir = 'tutorial/assets/fonts'
-source_fonts <- file.path(
+site_fonts <- file.path(
   source_font_dir,
   c(
     'LatinModernSans-Bold.otf',
     'LatinModernSans-BoldOblique.otf',
     'LatinModernSans-Oblique.otf',
     'LatinModernSans-Regular.otf',
+    'FiraCode-Retina.ttf'
+  )
+)
+figure_fonts <- file.path(
+  source_font_dir,
+  c(
     'NimbusSans-Bold.otf',
     'NimbusSans-BoldItalic.otf',
     'NimbusSans-Italic.otf',
-    'NimbusSans-Regular.otf',
-    'FiraCode-Retina.ttf'
+    'NimbusSans-Regular.otf'
   )
 )
 
@@ -53,10 +57,10 @@ required_inputs <- c(
   'tutorial/_bookdown.yml',
   'tutorial/_output.yml',
   'tutorial/style.css',
-  'tutorial/after-body.html',
   'scripts/01_build_tutorial_objects.R',
   'tmp/GSE122380_leave_one_cell_line_out_validation.rds',
-  source_fonts
+  site_fonts,
+  figure_fonts
 )
 missing_inputs <- required_inputs[!file.exists(required_inputs)]
 if (length(missing_inputs) > 0L) {
@@ -104,7 +108,7 @@ if (length(missing_site_outputs) > 0L) {
 docs_font_dir <- 'docs/assets/fonts'
 dir.create(docs_font_dir, recursive = TRUE, showWarnings = FALSE)
 font_copy_ok <- file.copy(
-  from = source_fonts,
+  from = site_fonts,
   to = docs_font_dir,
   overwrite = TRUE,
   copy.date = TRUE

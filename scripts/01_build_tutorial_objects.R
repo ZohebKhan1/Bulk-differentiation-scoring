@@ -10,9 +10,6 @@
 # - functions/select_temporal_genes.R
 # - functions/score_differentiation_timing.R
 #
-# params:
-# - config/analysis.yml
-#
 # input data:
 # - data/GSE122380_metadata.rds
 # - data/GSE122380_counts.rds
@@ -21,16 +18,16 @@
 #
 # outputs:
 # - tmp/GSE122380_temporal_cluster_go_k4.rds
-# - docs/assets/figures/GSE122380_reference_pca_and_day_correlation.{png,svg}
-# - docs/assets/figures/GSE122380_temporal_heatmap.{png,svg}
-# - docs/assets/figures/GSE122380_temporal_clusters.{png,svg}
-# - docs/assets/figures/GSE122380_pca_day.{png,svg}
-# - docs/assets/figures/GSE122380_pc1_validation.{png,svg}
-# - docs/assets/figures/GSE122380_timing_polyline.{png,svg}
-# - docs/assets/figures/GSE122380_score_by_day.{png,svg}
-# - docs/assets/figures/GSE122380_loo_cell_line_predictions.{png,svg}
-# - docs/assets/figures/GSE122380_loo_summary.{png,svg}
-# - docs/assets/figures/GSE122380_loo_timepoint_accuracy.{png,svg}
+# - docs/assets/figures/GSE122380_reference_pca_and_day_correlation.png
+# - docs/assets/figures/GSE122380_temporal_heatmap.png
+# - docs/assets/figures/GSE122380_temporal_clusters.png
+# - docs/assets/figures/GSE122380_pca_day.png
+# - docs/assets/figures/GSE122380_pc1_validation.png
+# - docs/assets/figures/GSE122380_timing_polyline.png
+# - docs/assets/figures/GSE122380_score_by_day.png
+# - docs/assets/figures/GSE122380_loo_cell_line_predictions.png
+# - docs/assets/figures/GSE122380_loo_summary.png
+# - docs/assets/figures/GSE122380_loo_timepoint_accuracy.png
 # ----
 
 # 0.0 validate dependencies and source functions -----------------
@@ -48,10 +45,8 @@ required_packages <- c(
   'patchwork',
   'ragg',
   'scales',
-  'svglite',
   'systemfonts',
-  'viridis',
-  'yaml'
+  'viridis'
 )
 missing_packages <- required_packages[
   !vapply(
@@ -75,16 +70,12 @@ source('functions/load_GSE122380_data.R', local = TRUE)
 source('functions/select_temporal_genes.R', local = TRUE)
 source('functions/score_differentiation_timing.R', local = TRUE)
 
-# 1.0 read shared parameters -----------------
+# 1.0 define script parameters and paths -----------------
 
-analysis_params <- yaml::read_yaml('config/analysis.yml')
-
-# 1.1 define script parameters and paths -----------------
-
-expression_cpm_cutoff = analysis_params$temporal_gene_selection$expression_cpm_cutoff
-lrt_padj_cutoff = analysis_params$temporal_gene_selection$lrt_padj_cutoff
-vst_dynamic_range_cutoff = analysis_params$temporal_gene_selection$vst_dynamic_range_cutoff
-n_timing_pcs = analysis_params$timing_score$n_pcs
+expression_cpm_cutoff = 10
+lrt_padj_cutoff = 1e-7
+vst_dynamic_range_cutoff = 0.6
+n_timing_pcs = 3L
 
 docs_figure_dir = 'docs/assets/figures'
 tutorial_font_dir = 'tutorial/assets/fonts'
@@ -123,7 +114,6 @@ loo_timepoint_accuracy_figure_height = 3.10
 
 figure_dpi = 600
 figure_family = 'GSE122380 Nimbus Sans'
-svg_figure_family = 'Nimbus Sans'
 # ggplot2 converts text from 72.27 typographic points per inch to millimetres
 ggplot_points_per_mm = 72.27 / 25.4
 
@@ -262,78 +252,7 @@ theme_legend_top <- function() {
   )
 }
 
-svg_font_faces <- function() {
-  list(
-    svglite::font_face(
-      svg_figure_family,
-      otf = '../fonts/NimbusSans-Regular.otf',
-      weight = 400
-    ),
-    svglite::font_face(
-      svg_figure_family,
-      otf = '../fonts/NimbusSans-Bold.otf',
-      weight = 700
-    ),
-    svglite::font_face(
-      svg_figure_family,
-      otf = '../fonts/NimbusSans-Italic.otf',
-      style = 'italic',
-      weight = 400
-    ),
-    svglite::font_face(
-      svg_figure_family,
-      otf = '../fonts/NimbusSans-BoldItalic.otf',
-      style = 'italic',
-      weight = 700
-    )
-  )
-}
-
-validate_svg_figure_font <- function(path) {
-  svg_lines <- readLines(path, warn = FALSE, encoding = 'UTF-8')
-  font_family_lines <- grep('font-family:', svg_lines, value = TRUE, fixed = TRUE)
-  expected_family <- sprintf('font-family: "%s"', svg_figure_family)
-
-  if (
-    length(font_family_lines) == 0L ||
-      any(!grepl(expected_family, font_family_lines, fixed = TRUE))
-  ) {
-    stop(
-      'SVG figure does not use ',
-      svg_figure_family,
-      ' exclusively: ',
-      path,
-      call. = FALSE
-    )
-  }
-
-  required_font_files <- c(
-    'NimbusSans-Regular.otf',
-    'NimbusSans-Bold.otf',
-    'NimbusSans-Italic.otf',
-    'NimbusSans-BoldItalic.otf'
-  )
-  missing_font_files <- required_font_files[
-    !vapply(
-      required_font_files,
-      function(font_file) any(grepl(font_file, svg_lines, fixed = TRUE)),
-      logical(1)
-    )
-  ]
-  if (length(missing_font_files) > 0L) {
-    stop(
-      'SVG figure is missing Nimbus Sans web-font declarations for: ',
-      paste(missing_font_files, collapse = ', '),
-      '. File: ',
-      path,
-      call. = FALSE
-    )
-  }
-
-  invisible(path)
-}
-
-save_figure_pair <- function(path_stub, plot, width, height) {
+save_figure <- function(path_stub, plot, width, height) {
   dir.create(dirname(path_stub), recursive = TRUE, showWarnings = FALSE)
   ggplot2::ggsave(
     filename = paste0(path_stub, '.png'),
@@ -345,22 +264,9 @@ save_figure_pair <- function(path_stub, plot, width, height) {
     bg = 'white',
     limitsize = FALSE
   )
-
-  ggplot2::ggsave(
-    filename = paste0(path_stub, '.svg'),
-    plot = plot,
-    width = width,
-    height = height,
-    device = svglite::svglite,
-    web_fonts = svg_font_faces(),
-    fix_text_size = FALSE,
-    bg = 'white',
-    limitsize = FALSE
-  )
-  validate_svg_figure_font(paste0(path_stub, '.svg'))
 }
 
-save_drawn_figure_pair <- function(path_stub, draw_fn, width, height, png_scale = 1) {
+save_drawn_figure <- function(path_stub, draw_fn, width, height, png_scale = 1) {
   dir.create(dirname(path_stub), recursive = TRUE, showWarnings = FALSE)
   ragg::agg_png(
     filename = paste0(path_stub, '.png'),
@@ -375,21 +281,6 @@ save_drawn_figure_pair <- function(path_stub, draw_fn, width, height, png_scale 
   draw_fn()
   grDevices::dev.off()
   on.exit(NULL, add = FALSE)
-
-  svglite::svglite(
-    file = paste0(path_stub, '.svg'),
-    width = width,
-    height = height,
-    bg = 'white',
-    web_fonts = svg_font_faces(),
-    fix_text_size = FALSE
-  )
-  on.exit(grDevices::dev.off(), add = TRUE)
-  grid::grid.newpage()
-  draw_fn()
-  grDevices::dev.off()
-  on.exit(NULL, add = FALSE)
-  validate_svg_figure_font(paste0(path_stub, '.svg'))
 }
 
 label_ensembl_genes <- function(gene_ids) {
@@ -1023,10 +914,9 @@ make_cluster_trajectory_plot <- function(cluster_name) {
 run_cluster_go_enrichment <- function(cluster_assignments, universe_gene_ids, cache_path) {
   cache_key <- list(
     input_md5 = GSE122380_data$input_md5,
-    implementation_md5 = unname(tools::md5sum(c(
-      'scripts/01_build_tutorial_objects.R',
-      'config/analysis.yml'
-    ))),
+    implementation_md5 = unname(tools::md5sum(
+      'scripts/01_build_tutorial_objects.R'
+    )),
     package_versions = c(
       clusterProfiler = as.character(utils::packageVersion('clusterProfiler')),
       org.Hs.eg.db = as.character(utils::packageVersion('org.Hs.eg.db'))
@@ -1852,8 +1742,7 @@ validation_source_paths <- c(
   'scripts/02_run_leave_one_cell_line_out_validation.R',
   'functions/load_GSE122380_data.R',
   'functions/select_temporal_genes.R',
-  'functions/score_differentiation_timing.R',
-  'config/analysis.yml'
+  'functions/score_differentiation_timing.R'
 )
 expected_validation_cache_key <- list(
   input_md5 = GSE122380_data$input_md5,
@@ -2137,13 +2026,13 @@ p_loo_timepoint_accuracy <- ggplot2::ggplot(
   )
 # 8.0 save tutorial figures -----------------
 
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_reference_pca_and_day_correlation'),
   plot = p_reference_overview,
   width = reference_overview_figure_width,
   height = reference_overview_figure_height
 )
-save_drawn_figure_pair(
+save_drawn_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_temporal_heatmap'),
   draw_fn = function() {
     ComplexHeatmap::ht_opt(
@@ -2162,50 +2051,50 @@ save_drawn_figure_pair(
   height = temporal_heatmap_figure_height,
   png_scale = 2
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_temporal_clusters'),
   plot = p_cluster_trajectories,
   width = temporal_clusters_figure_width,
   height = temporal_clusters_figure_height
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_pca_day'),
   plot = p_pca_day,
   width = pca_day_figure_width,
   height = pca_day_figure_height
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_pc1_validation'),
   plot = p_pc1_validation,
   width = pc1_validation_figure_width,
   height = pc1_validation_figure_height
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_timing_polyline'),
   plot = p_timing_polyline,
   width = timing_polyline_figure_width,
   height = timing_polyline_figure_height
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_score_by_day'),
   plot = p_score_by_day,
   width = score_by_day_figure_width,
   height = score_by_day_figure_height
 )
 
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_loo_cell_line_predictions'),
   plot = p_loo_cell_line_predictions,
   width = loo_cell_line_predictions_figure_width,
   height = loo_cell_line_predictions_figure_height
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_loo_summary'),
   plot = p_loo_summary,
   width = loo_summary_figure_width,
   height = loo_summary_figure_height
 )
-save_figure_pair(
+save_figure(
   path_stub = file.path(docs_figure_dir, 'GSE122380_loo_timepoint_accuracy'),
   plot = p_loo_timepoint_accuracy,
   width = loo_timepoint_accuracy_figure_width,

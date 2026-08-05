@@ -220,53 +220,66 @@
   text-align: left;
 }
 
-.book .book-body .page-wrapper .page-inner section.normal .temporal-filter-workflow {
-  align-items: stretch;
+.book .book-body .page-wrapper .page-inner section.normal .scoring-schematic {
   display: grid;
-  gap: 1.25rem;
-  grid-template-columns: minmax(240px, 0.95fr) minmax(180px, 0.75fr);
-  margin: 1.15rem auto 1.7rem;
-  max-width: 650px;
+  gap: 0.8rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 1.25rem auto 1.8rem;
+  max-width: 740px;
 }
 
-.book .book-body .page-wrapper .page-inner section.normal .temporal-filter-diagram {
-  align-self: stretch;
-  margin: 0 auto;
-  max-width: 310px;
-  text-align: center;
+.scoring-schematic-step {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid var(--tutorial-accent);
+  border-radius: 3px;
+  min-height: 7.2rem;
+  padding: 0.85rem 0.8rem 0.75rem;
+  position: relative;
 }
 
-.book .book-body .page-wrapper .page-inner section.normal .temporal-filter-diagram svg {
-  display: block;
-  height: auto;
-  margin: 0 auto;
-  max-width: 100% !important;
-  width: 100%;
+.scoring-schematic-step:not(:last-child)::after {
+  color: #64748b;
+  content: "→";
+  font-size: 1.15rem;
+  line-height: 1;
+  position: absolute;
+  right: -0.68rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
 }
 
-.workflow-step-legend {
-  display: grid;
-  grid-template-rows: repeat(4, 1fr);
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.workflow-step-legend li {
+.scoring-schematic-number {
   align-items: center;
-  border-left: 2px solid #cbd5e1;
-  color: #334155;
-  display: flex;
-  font-size: 0.79em;
-  gap: 0.5rem;
-  line-height: 1.25;
-  padding: 0.32rem 0 0.32rem 0.7rem;
+  background: var(--tutorial-accent);
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.72em;
+  font-weight: 700;
+  height: 1.5rem;
+  justify-content: center;
+  margin-bottom: 0.65rem;
+  width: 1.5rem;
 }
 
-.workflow-step-number {
-  color: #0f172a;
-  font-weight: 700;
-  white-space: nowrap;
+.scoring-schematic-step strong,
+.scoring-schematic-step > span:last-child {
+  display: block;
+}
+
+.scoring-schematic-step strong {
+  color: #172033;
+  font-size: 0.88em;
+  line-height: 1.25;
+  margin-bottom: 0.32rem;
+}
+
+.scoring-schematic-step > span:last-child {
+  color: #526071;
+  font-size: 0.75em;
+  line-height: 1.3;
 }
 
 .book .book-body .page-wrapper .page-inner section.normal table {
@@ -463,22 +476,24 @@
     font-size: 16.5px;
   }
 
-  .book .book-body .page-wrapper .page-inner section.normal .temporal-filter-workflow {
+  .book .book-body .page-wrapper .page-inner section.normal .scoring-schematic {
+    gap: 1.2rem;
     grid-template-columns: 1fr;
-    max-width: min(320px, calc(100vw - 68px));
+    max-width: min(360px, calc(100vw - 50px));
   }
 
-  .book .book-body .page-wrapper .page-inner section.normal .temporal-filter-diagram {
-    max-width: 250px;
+  .scoring-schematic-step {
+    min-height: 0;
+    padding: 0.8rem 0.9rem;
   }
 
-  .workflow-step-legend {
-    gap: 0.18rem;
-    grid-template-rows: repeat(3, auto);
-  }
-
-  .workflow-step-legend li {
-    min-height: 2.4rem;
+  .scoring-schematic-step:not(:last-child)::after {
+    bottom: -0.97rem;
+    content: "↓";
+    left: 50%;
+    right: auto;
+    top: auto;
+    transform: translateX(-50%);
   }
 
   .tutorial-title-block {

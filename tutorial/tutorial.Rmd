@@ -21,10 +21,8 @@ tutorial_dependency_packages <- c(
   'patchwork',
   'ragg',
   'scales',
-  'svglite',
   'systemfonts',
-  'viridis',
-  'yaml'
+  'viridis'
 )
 tutorial_dependency_text <- paste(
   sprintf(
@@ -170,7 +168,7 @@ The overview below shows global time-course structure and the corresponding day-
 ```{r reference-pca-and-correlation, echo=FALSE, results='asis'}
 cat('<div id="fig-reference-overview" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_reference_pca_and_day_correlation.svg',
+  'GSE122380_reference_pca_and_day_correlation.png',
   'PCA of the reference samples and a day-level expression correlation heatmap.'
 )
 ```
@@ -179,33 +177,34 @@ tutorial_figure(
 
 # Scoring workflow
 
+```{=html}
+<div class="scoring-schematic" role="group" aria-label="Differentiation timing scoring workflow">
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">1</span>
+    <strong>Temporal genes</strong>
+    <span>Selected in reference samples</span>
+  </div>
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">2</span>
+    <strong>Reference PCA</strong>
+    <span>Centered, unscaled expression</span>
+  </div>
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">3</span>
+    <strong>Day trajectory</strong>
+    <span>Ordered reference centroids</span>
+  </div>
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">4</span>
+    <strong>Sample projection</strong>
+    <span>Predicted time, score, and distance</span>
+  </div>
+</div>
+```
+
 ## Select temporal genes
 
 Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.
-
-```{=html}
-<div class="temporal-filter-workflow">
-  <div class="mermaid temporal-filter-diagram">
-flowchart TB
-    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]:::pre_filter
-    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]:::significance
-    vst["VST<br/>day-mean range ≥ 0.6"]:::effect_size
-    temporal["Temporal genes"]:::output
-
-    cpm --> lrt --> vst --> temporal
-
-    classDef pre_filter fill:#E5F0FA,stroke:#4D7EA8,stroke-width:1.25px,color:#17324D
-    classDef significance fill:#F1EAF7,stroke:#8B63A6,stroke-width:1.25px,color:#342044
-    classDef effect_size fill:#E2F2EC,stroke:#3E8A70,stroke-width:1.25px,color:#163F34
-    classDef output fill:#F3F5F7,stroke:#64748B,stroke-width:1.25px,color:#1F2937
-  </div>
-  <ol class="workflow-step-legend" aria-label="Temporal-gene filtering workflow steps">
-    <li><span class="workflow-step-number">(1)</span><span>Expression pre-filtering</span></li>
-    <li><span class="workflow-step-number">(2)</span><span>Temporal expression significance</span></li>
-    <li><span class="workflow-step-number">(3)</span><span>Effect size filtering</span></li>
-  </ol>
-</div>
-```
 
 The LRT compares a full count model containing cell line and categorical differentiation day with a reduced model containing cell line alone:
 
@@ -228,16 +227,13 @@ where \(\ell\) is the maximized model log likelihood. This tests whether categor
 ```{r temporal-filter-code, eval=FALSE, echo=TRUE}
 source('functions/select_temporal_genes.R')
 
-analysis_params <- yaml::read_yaml('config/analysis.yml')
-temporal_gene_params <- analysis_params$temporal_gene_selection
-
 temporal_selection <- select_temporal_genes(
   counts = counts,
   vst = vst,
   metadata = metadata,
-  expression_cpm_cutoff = temporal_gene_params$expression_cpm_cutoff,
-  lrt_padj_cutoff = temporal_gene_params$lrt_padj_cutoff,
-  vst_dynamic_range_cutoff = temporal_gene_params$vst_dynamic_range_cutoff
+  expression_cpm_cutoff = 10,
+  lrt_padj_cutoff = 1e-7,
+  vst_dynamic_range_cutoff = 0.6
 )
 temporal_genes <- temporal_selection$temporal_genes
 ```
@@ -283,7 +279,7 @@ The four-cluster partition uses Ward-D2 hierarchical clustering of Euclidean dis
 ```{r temporal-clusters, echo=FALSE, results='asis'}
 cat('<div id="fig-temporal-clusters" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_temporal_clusters.svg',
+  'GSE122380_temporal_clusters.png',
   'Four temporal expression clusters with their enriched GO biological processes.'
 )
 ```
@@ -304,7 +300,7 @@ The scorer retains three PCs. PC1 is flipped for figure readability when needed 
 ```{r pca-day, echo=FALSE, results='asis'}
 cat('<div id="fig-pca-day" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_pca_day.svg',
+  'GSE122380_pca_day.png',
   'PCA and PC1 versus day for all temporal genes and early and late cluster subsets.'
 )
 ```
@@ -316,7 +312,7 @@ The loading analysis annotates the largest PC1 and PC2 loadings and tests the to
 ```{r pc1-validation, echo=FALSE, results='asis'}
 cat('<div id="fig-pc1-validation" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_pc1_validation.svg',
+  'GSE122380_pc1_validation.png',
   'Top PCA loading genes and GO enrichment for positive and negative PC1 loadings.'
 )
 ```
@@ -375,7 +371,7 @@ timing_fit <- score_differentiation_timing(
   temporal_genes = temporal_genes,      # temporally variable genes identified in step 3
   sample_id_col = 'sample_id',
   time_col = 'day_numeric',
-  n_pcs = analysis_params$timing_score$n_pcs
+  n_pcs = 3
 )
 head(timing_fit$scores)
 ```
@@ -383,7 +379,7 @@ head(timing_fit$scores)
 ```{r timing-polyline, echo=FALSE, results='asis'}
 cat('<div id="fig-timing-polyline" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_timing_polyline.svg',
+  'GSE122380_timing_polyline.png',
   'Samples and the ordered day-centroid polyline in the first two principal components.',
   '86%'
 )
@@ -396,7 +392,7 @@ The next figure projects the reference samples back onto their fitted trajectory
 ```{r score-by-day, echo=FALSE, results='asis'}
 cat('<div id="fig-score-by-day" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_score_by_day.svg',
+  'GSE122380_score_by_day.png',
   'Differentiation timing scores across observed differentiation days.'
 )
 ```
@@ -424,7 +420,7 @@ knitr::kable(
 ```{r loo-cell-line-predictions, echo=FALSE, results='asis'}
 cat('<div id="fig-loo-cell-line-predictions" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_loo_cell_line_predictions.svg',
+  'GSE122380_loo_cell_line_predictions.png',
   'Predicted versus observed day trajectories for twelve displayed held-out cell lines.'
 )
 ```
@@ -434,7 +430,7 @@ tutorial_figure(
 ```{r loo-summary-figure, echo=FALSE, results='asis'}
 cat('<div id="fig-loo-summary" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_loo_summary.svg',
+  'GSE122380_loo_summary.png',
   'Predicted versus observed differentiation day for every held-out sample.'
 )
 ```
@@ -452,7 +448,7 @@ Bars show the mean absolute held-out prediction error at each observed day. Erro
 ```{r loo-timepoint-accuracy, echo=FALSE, results='asis'}
 cat('<div id="fig-loo-timepoint-accuracy" class="figure-anchor"></div>')
 tutorial_figure(
-  'GSE122380_loo_timepoint_accuracy.svg',
+  'GSE122380_loo_timepoint_accuracy.png',
   'Mean absolute held-out prediction error by observed differentiation day, with standard-deviation error bars.',
   '82%'
 )

@@ -10,9 +10,6 @@
 # - functions/select_temporal_genes.R
 # - functions/score_differentiation_timing.R
 #
-# params:
-# - config/analysis.yml
-#
 # input data:
 # - data/GSE122380_metadata.rds
 # - data/GSE122380_counts.rds
@@ -24,7 +21,7 @@
 
 # 0.0 validate dependencies and source functions -----------------
 
-required_packages <- c('DESeq2', 'edgeR', 'yaml')
+required_packages <- c('DESeq2', 'edgeR')
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
 ]
@@ -42,20 +39,16 @@ source('functions/load_GSE122380_data.R')
 source('functions/select_temporal_genes.R')
 source('functions/score_differentiation_timing.R')
 
-# 1.0 read shared parameters -----------------
+# 1.0 define script parameters and paths -----------------
 
-analysis_params <- yaml::read_yaml('config/analysis.yml')
-
-# 1.1 define script parameters and paths -----------------
-
-expression_cpm_cutoff = analysis_params$temporal_gene_selection$expression_cpm_cutoff
-lrt_padj_cutoff = analysis_params$temporal_gene_selection$lrt_padj_cutoff
-vst_dynamic_range_cutoff = analysis_params$temporal_gene_selection$vst_dynamic_range_cutoff
-n_pcs = analysis_params$timing_score$n_pcs
+expression_cpm_cutoff = 10
+lrt_padj_cutoff = 1e-7
+vst_dynamic_range_cutoff = 0.6
+n_pcs = 3L
 
 validation_cache_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
 
-# 1.2 read direct inputs -----------------
+# 1.1 read direct inputs -----------------
 
 GSE122380_data <- load_GSE122380_data()
 metadata <- GSE122380_data$metadata
@@ -69,8 +62,7 @@ cache_source_paths <- c(
   'scripts/02_run_leave_one_cell_line_out_validation.R',
   'functions/load_GSE122380_data.R',
   'functions/select_temporal_genes.R',
-  'functions/score_differentiation_timing.R',
-  'config/analysis.yml'
+  'functions/score_differentiation_timing.R'
 )
 validation_cache_key <- list(
   input_md5 = GSE122380_data$input_md5,
@@ -86,7 +78,7 @@ validation_cache_key <- list(
   heldout_cell_lines = heldout_cell_lines
 )
 
-# 1.3 define local helpers -----------------
+# 1.2 define local helpers -----------------
 
 read_validation_cache <- function() {
   if (!file.exists(validation_cache_path)) {

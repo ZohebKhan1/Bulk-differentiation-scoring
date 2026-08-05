@@ -195,13 +195,13 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <span>Modified:</span> 2026-08-01
 </div>
 <div>
-<span>Compiled:</span> 2026-08-01
+<span>Compiled:</span> 2026-08-05
 </div>
 <div>
 <span>Environment:</span> R 4.6.1; Bioconductor 3.23
 </div>
 <div>
-<span>Dependencies:</span> AnnotationDbi 1.74.0; bookdown 0.47; circlize 0.4.18; clusterProfiler 4.20.0; ComplexHeatmap 2.28.0; DESeq2 1.52.0; edgeR 4.10.1; ggplot2 4.0.3; ggrepel 0.9.8; knitr 1.51; org.Hs.eg.db 3.23.1; patchwork 1.3.2; ragg 1.5.2; scales 1.4.0; svglite 2.2.2; systemfonts 1.3.2; viridis 0.6.5; yaml 2.3.12
+<span>Dependencies:</span> AnnotationDbi 1.74.0; bookdown 0.47; circlize 0.4.18; clusterProfiler 4.20.0; ComplexHeatmap 2.28.0; DESeq2 1.52.0; edgeR 4.10.1; ggplot2 4.0.3; ggrepel 0.9.8; knitr 1.51; org.Hs.eg.db 3.23.1; patchwork 1.3.2; ragg 1.5.2; scales 1.4.0; systemfonts 1.3.2; viridis 0.6.5
 </div>
 <div>
 <span>Source:</span> <a href="https://github.com/ZohebKhan1/pca-maturation-scoring">github.com/ZohebKhan1/pca-maturation-scoring</a>
@@ -413,37 +413,38 @@ Cell lines
 <div id="fig-reference-overview" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_reference_pca_and_day_correlation.svg" alt="PCA of the reference samples and a day-level expression correlation heatmap." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_reference_pca_and_day_correlation.png" alt="PCA of the reference samples and a day-level expression correlation heatmap." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 1.</strong> Experimental structure of the GSE122380 time course. <strong>a.</strong> PCA using the top 10% most variable VST genes, colored by differentiation day. <strong>b.</strong> Pearson correlation between day-mean profiles from the same variable-gene set.
 </div>
 </div>
 <div id="scoring-workflow" class="section level1 hasAnchor" number="3">
 <h1><span class="header-section-number">3</span> Scoring workflow<a href="#scoring-workflow" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div class="scoring-schematic" role="group" aria-label="Differentiation timing scoring workflow">
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">1</span>
+    <strong>Temporal genes</strong>
+    <span>Selected in reference samples</span>
+  </div>
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">2</span>
+    <strong>Reference PCA</strong>
+    <span>Centered, unscaled expression</span>
+  </div>
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">3</span>
+    <strong>Day trajectory</strong>
+    <span>Ordered reference centroids</span>
+  </div>
+  <div class="scoring-schematic-step">
+    <span class="scoring-schematic-number">4</span>
+    <strong>Sample projection</strong>
+    <span>Predicted time, score, and distance</span>
+  </div>
+</div>
 <div id="select-temporal-genes" class="section level2 hasAnchor" number="3.1">
 <h2><span class="header-section-number">3.1</span> Select temporal genes<a href="#select-temporal-genes" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.</p>
-<div class="temporal-filter-workflow">
-  <div class="mermaid temporal-filter-diagram">
-flowchart TB
-    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]:::pre_filter
-    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]:::significance
-    vst["VST<br/>day-mean range ≥ 0.6"]:::effect_size
-    temporal["Temporal genes"]:::output
-
-    cpm --> lrt --> vst --> temporal
-
-    classDef pre_filter fill:#E5F0FA,stroke:#4D7EA8,stroke-width:1.25px,color:#17324D
-    classDef significance fill:#F1EAF7,stroke:#8B63A6,stroke-width:1.25px,color:#342044
-    classDef effect_size fill:#E2F2EC,stroke:#3E8A70,stroke-width:1.25px,color:#163F34
-    classDef output fill:#F3F5F7,stroke:#64748B,stroke-width:1.25px,color:#1F2937
-  </div>
-  <ol class="workflow-step-legend" aria-label="Temporal-gene filtering workflow steps">
-    <li><span class="workflow-step-number">(1)</span><span>Expression pre-filtering</span></li>
-    <li><span class="workflow-step-number">(2)</span><span>Temporal expression significance</span></li>
-    <li><span class="workflow-step-number">(3)</span><span>Effect size filtering</span></li>
-  </ol>
-</div>
 <p>The LRT compares a full count model containing cell line and categorical differentiation day with a reduced model containing cell line alone:</p>
 <p><span class="math display">\[
 \mathrm{full}: y \sim \mathrm{cell\ line} + \mathrm{day},
@@ -459,18 +460,15 @@ flowchart TB
 <p>where <span class="math inline">\(\ell\)</span> is the maximized model log likelihood. This tests whether categorical day improves fit after accounting for cell-line structure; it does not assume a linear expression trend.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/select_temporal_genes.R&#39;</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>analysis_params <span class="ot">&lt;-</span> yaml<span class="sc">::</span><span class="fu">read_yaml</span>(<span class="st">&#39;config/analysis.yml&#39;</span>)</span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>temporal_gene_params <span class="ot">&lt;-</span> analysis_params<span class="sc">$</span>temporal_gene_selection</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">counts =</span> counts,</span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">vst =</span> vst,</span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="at">expression_cpm_cutoff =</span> temporal_gene_params<span class="sc">$</span>expression_cpm_cutoff,</span>
-<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="at">lrt_padj_cutoff =</span> temporal_gene_params<span class="sc">$</span>lrt_padj_cutoff,</span>
-<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  <span class="at">vst_dynamic_range_cutoff =</span> temporal_gene_params<span class="sc">$</span>vst_dynamic_range_cutoff</span>
-<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>)</span>
-<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="at">counts =</span> counts,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="at">vst =</span> vst,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">expression_cpm_cutoff =</span> <span class="dv">10</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">lrt_padj_cutoff =</span> <span class="fl">1e-7</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">vst_dynamic_range_cutoff =</span> <span class="fl">0.6</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>)</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
 <table class="sample-summary-table">
 <caption>
 <span id="tab:lrt-summary-table">Table 3.1: </span>Sequential temporal-gene filtering.
@@ -529,7 +527,7 @@ Genes passing all filters and used for scoring
 <div id="fig-temporal-clusters" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_temporal_clusters.svg" alt="Four temporal expression clusters with their enriched GO biological processes." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_temporal_clusters.png" alt="Four temporal expression clusters with their enriched GO biological processes." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 3.</strong> Descriptive temporal clusters and GO enrichment for the 1,500 heatmap genes. Each row pairs a cluster trajectory with its top enriched GO Biological Process terms.
 </div>
@@ -545,7 +543,7 @@ Genes passing all filters and used for scoring
 <div id="fig-pca-day" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_pca_day.svg" alt="PCA and PC1 versus day for all temporal genes and early and late cluster subsets." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_pca_day.png" alt="PCA and PC1 versus day for all temporal genes and early and late cluster subsets." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 4.</strong> PCA and PC1-day relationships for the full temporal set and two descriptive cluster subsets. C1+C2 and C3+C4 are interpretive subsets, not alternative primary models.
 </div>
@@ -553,7 +551,7 @@ Genes passing all filters and used for scoring
 <div id="fig-pc1-validation" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_pc1_validation.svg" alt="Top PCA loading genes and GO enrichment for positive and negative PC1 loadings." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_pc1_validation.png" alt="Top PCA loading genes and GO enrichment for positive and negative PC1 loadings." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 5.</strong> PCA loading interpretation. <strong>a-b.</strong> The ten largest positive and negative PC1 and PC2 loading genes. Ambiguous Ensembl-to-symbol mappings retain the Ensembl ID. <strong>c-d.</strong> GO enrichment among the 500 strongest negative and positive PC1 loadings.
 </div>
@@ -600,13 +598,13 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,      <span class="co"># temporally variable genes identified in step 3</span></span>
 <span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
 <span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span>,</span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> analysis_params<span class="sc">$</span>timing_score<span class="sc">$</span>n_pcs</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> <span class="dv">3</span></span>
 <span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>)</span>
 <span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="fu">head</span>(timing_fit<span class="sc">$</span>scores)</span></code></pre></div>
 <div id="fig-timing-polyline" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_timing_polyline.svg" alt="Samples and the ordered day-centroid polyline in the first two principal components." style="width:86%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_timing_polyline.png" alt="Samples and the ordered day-centroid polyline in the first two principal components." style="width:86%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 6.</strong> Differentiation trajectory in reference PCA space. Black points are day centroids; arrows connect them in day order. The day 1 and day 15 centroids anchor scores 0 and 1.
 </div>
@@ -614,7 +612,7 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 <div id="fig-score-by-day" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_score_by_day.svg" alt="Differentiation timing scores across observed differentiation days." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_score_by_day.png" alt="Differentiation timing scores across observed differentiation days." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 7.</strong> Reference-sample differentiation timing scores by observed day. Dashed lines mark the bounded reference endpoints at 0 and 1.
 </div>
@@ -708,14 +706,14 @@ Predictions within 2 days
 <div id="fig-loo-cell-line-predictions" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_cell_line_predictions.svg" alt="Predicted versus observed day trajectories for twelve displayed held-out cell lines." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_cell_line_predictions.png" alt="Predicted versus observed day trajectories for twelve displayed held-out cell lines." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 8.</strong> Held-out predictions for 12 displayed cell lines. Each panel reports Pearson <span class="math inline">\(r\)</span> and its square for that line; neither quantity is a predictive <span class="math inline">\(R^2\)</span> statistic.
 </div>
 <div id="fig-loo-summary" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_summary.svg" alt="Predicted versus observed differentiation day for every held-out sample." style="width:96%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_summary.png" alt="Predicted versus observed differentiation day for every held-out sample." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 9.</strong> Predicted versus observed differentiation day for all held-out samples. The dashed line is identity; the solid line is an ordinary least-squares summary.
 </div>
@@ -727,7 +725,7 @@ e_i=\left|\widehat{t}_i-t_i\right|.
 <div id="fig-loo-timepoint-accuracy" class="figure-anchor">
 
 </div>
-<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_timepoint_accuracy.svg" alt="Mean absolute held-out prediction error by observed differentiation day, with standard-deviation error bars." style="width:82%;"></p>
+<p><img class="tutorial-figure" src="assets/figures/GSE122380_loo_timepoint_accuracy.png" alt="Mean absolute held-out prediction error by observed differentiation day, with standard-deviation error bars." style="width:82%;"></p>
 <div class="tutorial-figure-caption">
 <strong>Figure 10.</strong> Absolute held-out prediction error by day. Lower values indicate closer timing predictions.
 </div>
@@ -757,7 +755,7 @@ e_i=\left|\widehat{t}_i-t_i\right|.
 ## locale:
 ## [1] C.UTF-8/C.UTF-8/C.UTF-8/C/C.UTF-8/C.UTF-8
 ## 
-## time zone: America/New_York
+## time zone: America/Chicago
 ## tzcode source: internal
 ## 
 ## attached base packages:
@@ -822,63 +820,28 @@ e_i=\left|\widehat{t}_i-t_i\right|.
 ## [111] gridExtra_2.3.1             fontBitstreamVera_0.1.1
 ## [113] bookdown_0.47               IRanges_2.46.0
 ## [115] Seqinfo_1.2.0               edgeR_4.10.1
-## [117] SummarizedExperiment_1.42.0 svglite_2.2.2
-## [119] stats4_4.6.1                xfun_0.60
-## [121] Biobase_2.72.0              statmod_1.5.2
-## [123] matrixStats_1.5.0           stringi_1.8.7
-## [125] lazyeval_0.2.3              ggfun_0.2.1
-## [127] yaml_2.3.12                 evaluate_1.0.5
-## [129] codetools_0.2-20            qvalue_2.44.0
-## [131] gdtools_0.5.1               tibble_3.3.1
-## [133] BiocManager_1.30.27         ggplotify_0.1.3
-## [135] cli_3.6.6                   systemfonts_1.3.2
-## [137] jquerylib_0.1.4             processx_3.9.0
-## [139] styler_1.11.0               dichromat_2.0-0.1
-## [141] Rcpp_1.1.2                  png_0.1-9
-## [143] parallel_4.6.1              ggplot2_4.0.3
-## [145] blob_1.3.0                  clusterProfiler_4.20.0
-## [147] DOSE_4.6.0                  viridisLite_0.4.3
-## [149] tidytree_0.4.8              ggiraph_0.9.6
-## [151] enrichit_0.2.0              scales_1.4.0
-## [153] purrr_1.2.2                 crayon_1.5.3
-## [155] GetoptLong_1.1.1            rlang_1.3.0
-## [157] KEGGREST_1.52.2</code></pre>
+## [117] SummarizedExperiment_1.42.0 stats4_4.6.1
+## [119] xfun_0.60                   Biobase_2.72.0
+## [121] statmod_1.5.2               matrixStats_1.5.0
+## [123] stringi_1.8.7               lazyeval_0.2.3
+## [125] ggfun_0.2.1                 yaml_2.3.12
+## [127] evaluate_1.0.5              codetools_0.2-20
+## [129] qvalue_2.44.0               gdtools_0.5.1
+## [131] tibble_3.3.1                BiocManager_1.30.27
+## [133] ggplotify_0.1.3             cli_3.6.6
+## [135] systemfonts_1.3.2           jquerylib_0.1.4
+## [137] processx_3.9.0              styler_1.11.0
+## [139] dichromat_2.0-0.1           Rcpp_1.1.2
+## [141] png_0.1-9                   parallel_4.6.1
+## [143] ggplot2_4.0.3               blob_1.3.0
+## [145] clusterProfiler_4.20.0      DOSE_4.6.0
+## [147] viridisLite_0.4.3           tidytree_0.4.8
+## [149] ggiraph_0.9.6               enrichit_0.2.0
+## [151] scales_1.4.0                purrr_1.2.2
+## [153] crayon_1.5.3                GetoptLong_1.1.1
+## [155] rlang_1.3.0                 KEGGREST_1.52.2</code></pre>
 
 </div>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    document
-      .querySelectorAll('.page-inner a[href^="http"]')
-      .forEach(function (link) {
-        link.setAttribute("target", "_blank");
-        link.setAttribute("rel", "noopener noreferrer");
-      });
-
-  });
-</script>
-<script type="module">
-  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.esm.min.mjs";
-
-  mermaid.initialize({
-    startOnLoad: true,
-    securityLevel: "strict",
-    theme: "base",
-    themeVariables: {
-      fontFamily: '"Latin Modern Sans", "Helvetica Neue", Helvetica, Arial, sans-serif',
-      fontSize: "13px",
-      primaryColor: "#eef5fb",
-      primaryTextColor: "#111827",
-      primaryBorderColor: "#185f8a",
-      lineColor: "#64748b"
-    },
-    flowchart: {
-      curve: "linear",
-      nodeSpacing: 24,
-      rankSpacing: 54,
-      useMaxWidth: true
-    }
-  });
-</script>
             </section>
 
           </div>

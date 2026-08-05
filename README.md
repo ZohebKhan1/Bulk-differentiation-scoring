@@ -1,12 +1,14 @@
 # Differentiation timing score
 
-A reproducible bulk RNA-seq tutorial and standalone R scorer for estimating position along a reference differentiation time course. The worked example uses 192 processed GSE122380 iPSC-to-cardiomyocyte samples from 13 cell lines across days 1 through 15.
+Bulk RNA-seq differentiation studies are usually sampled at discrete timepoints, but individual samples can progress at different rates. `score_differentiation_timing()` places each sample along a reference differentiation time course using its expression profile rather than its collection day alone.
 
-[Open the rendered tutorial](https://zohebkhan1.github.io/pca-maturation-scoring/)
+The function learns a centered, unscaled PCA space from reference samples and preselected temporal genes. It connects the average position of successive reference timepoints, then projects each sample to the nearest point on that trajectory. The result includes a predicted reference time, a normalized score from 0 at the earliest reference timepoint to 1 at the latest, and the sample's distance from the fitted trajectory.
 
-## Reuse the scorer
+The worked example uses 192 processed GSE122380 iPSC-to-cardiomyocyte samples from 13 cell lines across days 1 through 15. [Open the rendered tutorial](https://zohebkhan1.github.io/pca-maturation-scoring/).
 
-The scorer is one dependency-free R file. It accepts normalized expression, metadata, and a preselected temporal-gene set; it does not normalize counts, select genes, draw figures, or write files.
+## Use the scorer
+
+The scorer is a single dependency-free R file. It expects normalized expression, matching sample metadata, and a temporal-gene set selected independently of the samples being evaluated. It does not normalize counts, select genes, draw figures, or write files.
 
 ```r
 base_url <- paste0(
@@ -34,31 +36,16 @@ timing_fit <- score_differentiation_timing(
 head(timing_fit$scores)
 ```
 
-The function trains PCA only on reference samples, joins ordered reference-time centroids, and projects every sample to its nearest position on the finite centroid polyline. `predicted_time` and `differentiation_score` are bounded by the reference interval. The returned squared distance is useful for identifying samples far from the fitted trajectory.
+`timing_fit$scores` contains the observed and predicted time, the normalized `differentiation_score`, the nearest trajectory segment, and the squared projection distance for each sample. A large distance indicates that a sample is poorly represented by the reference trajectory and should be interpreted cautiously.
 
-## Repository layout
+## Reproduce the worked example
 
-```text
-├── config/       Shared scientific thresholds and retained-PC count
-├── data/         Tracked processed GSE122380 inputs
-├── docs/         Generated GitHub Pages site; do not edit by hand
-├── functions/    Data boundary, temporal selection, and standalone scorer
-├── scripts/      Analysis, cell-line cross-validation, and site render
-├── tests/        Dependency-free scorer contract checks
-└── tutorial/     Single maintained tutorial source, CSS, and font assets
-```
-
-`tutorial/tutorial.Rmd` is the only maintained site source. `scripts/03_render_tutorial_site.R` renders it directly to `docs/`, preventing source and deployed copies from drifting.
-
-## Reproduce on macOS
-
-Use a current R installation. On Apple silicon, all packages should be installed for the native arm64 R architecture. The following separates CRAN and Bioconductor dependencies:
+Use a current R installation. On Apple silicon, install packages for the native arm64 R architecture.
 
 ```r
 install.packages(c(
   'BiocManager', 'bookdown', 'circlize', 'ggplot2', 'ggrepel',
-  'patchwork', 'ragg', 'scales', 'svglite', 'systemfonts',
-  'viridis', 'yaml'
+  'patchwork', 'ragg', 'scales', 'systemfonts', 'viridis'
 ))
 
 BiocManager::install(c(
@@ -67,44 +54,38 @@ BiocManager::install(c(
 ))
 ```
 
-From the repository root, run the held-out validation first, then render:
+Run the held-out validation before rendering the tutorial:
 
 ```bash
 Rscript scripts/02_run_leave_one_cell_line_out_validation.R
 Rscript scripts/03_render_tutorial_site.R
 ```
 
-The validation script checkpoints completed folds in `tmp/`. Its cache key includes input, implementation, parameter, package-version, and held-out-cell-line identity. The render refuses a missing or stale cache, rebuilds the tutorial objects and all ten figure pairs, and writes `docs/index.html`.
+The validation script checkpoints completed folds in `tmp/`. The render rejects a missing or stale cache, rebuilds the analysis figures, and writes the site to `docs/index.html`.
 
-Run the fast standalone-scorer checks independently with:
+## Analysis details
 
-```bash
-Rscript tests/test_score_differentiation_timing.R
+The GSE122380 example retains genes with a maximum day-mean TMM CPM of at least 10, a DESeq2 likelihood-ratio-test adjusted p-value below `1e-7`, and a day-mean VST range of at least 0.6. PCA is centered without variance scaling and retains three PCs. Ordered day centroids define the finite scoring trajectory.
+
+Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and trajectory fitting without the held-out cell line. The tracked VST matrix is shared across folds because its upstream construction pipeline is unavailable. The reported results therefore measure internal performance within this processed cohort, not transferability to another dataset or platform.
+
+See [METHODS.md](METHODS.md) for the analysis decisions, [DATA.md](DATA.md) for input dimensions and checksums, and [VALIDATION.md](VALIDATION.md) for executed checks and remaining limitations.
+
+## Repository contents
+
+```text
+├── data/         Processed GSE122380 inputs
+├── docs/         Generated GitHub Pages site
+├── functions/    Data loading, temporal selection, and scoring functions
+├── scripts/      Analysis, cross-validation, and site rendering
+└── tutorial/     Maintained tutorial source and presentation assets
 ```
 
-## Scientific contract
+`tutorial/tutorial.Rmd` is the only maintained site source; `docs/` contains generated output.
 
-Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.
+## Scope
 
-```mermaid
-flowchart TB
-    cpm["TMM CPM<br/>day-mean maximum ≥ 10"]
-    lrt["DESeq2 LRT<br/>adjusted p-value &lt; 10⁻⁷"]
-    vst["VST<br/>day-mean range ≥ 0.6"]
-    temporal["Temporal genes"]
-
-    cpm --> lrt --> vst --> temporal
-```
-
-PCA is centered without variance scaling and retains three PCs. Ordered day centroids form the scoring polyline; the day 1 and day 15 centroids anchor scores 0 and 1.
-
-Leave-one-cell-line-out validation refits temporal-gene selection, PCA, and the polyline within each fold. The tracked VST matrix is shared across folds because its upstream construction pipeline is unavailable. These results are internal validation conditional on the processed GSE122380 cohort, not an external transferability estimate.
-
-See [METHODS.md](METHODS.md) for analysis decisions, [DATA.md](DATA.md) for input dimensions and checksums, and [VALIDATION.md](VALIDATION.md) for the executed checks and remaining limits. Exact R and package versions are recorded at the end of the rendered tutorial.
-
-## Scope and provenance
-
-The repository starts from three tracked processed RDS objects. It does not include raw-read acquisition, QC, alignment, quantification, or VST-construction code, so reproducibility begins at these versioned inputs rather than FASTQ files. The score measures trajectory position; it should not be interpreted by itself as cell quality, differentiation efficiency, potency, or lineage identity.
+Reproducibility begins with the three versioned processed RDS objects in `data/`. The repository does not include raw-read acquisition, QC, alignment, quantification, or VST-construction code. The score measures timing relative to the chosen reference trajectory; it does not by itself measure cell quality, differentiation efficiency, potency, or lineage identity.
 
 ## References
 
