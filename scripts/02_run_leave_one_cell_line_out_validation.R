@@ -1,40 +1,7 @@
-# ----
-# author:
-# - Zoheb Khan
-#
-# script path:
-# - scripts/02_run_leave_one_cell_line_out_validation.R
-#
-# functions:
-# - functions/load_GSE122380_data.R
-# - functions/select_temporal_genes.R
-# - functions/score_differentiation_timing.R
-#
-# input data:
-# - data/GSE122380_metadata.rds
-# - data/GSE122380_counts.rds
-# - data/GSE122380_vst.rds
-#
-# outputs:
-# - tmp/GSE122380_leave_one_cell_line_out_validation.rds
-# ----
+library(DESeq2)
+library(edgeR)
 
-# 0.0 validate dependencies and source functions -----------------
-
-required_packages <- c('DESeq2', 'edgeR')
-missing_packages <- required_packages[
-  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
-]
-if (length(missing_packages) > 0L) {
-  stop(
-    'Missing required packages: ',
-    paste(missing_packages, collapse = ', '),
-    '.',
-    call. = FALSE
-  )
-}
-
-# source canonical loader, temporal selection, and timing scorer
+# source project functions
 source('functions/load_GSE122380_data.R')
 source('functions/select_temporal_genes.R')
 source('functions/score_differentiation_timing.R')
@@ -46,7 +13,7 @@ lrt_padj_cutoff = 1e-7
 vst_dynamic_range_cutoff = 0.6
 n_pcs = 3L
 
-validation_cache_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
+validation_results_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
 
 # 1.1 read direct inputs -----------------
 
@@ -58,80 +25,7 @@ vst <- GSE122380_data$vst
 ordered_days <- sort(unique(metadata$day_numeric))
 heldout_cell_lines <- sort(unique(as.character(metadata$cell_line)))
 
-cache_source_paths <- c(
-  'scripts/02_run_leave_one_cell_line_out_validation.R',
-  'functions/load_GSE122380_data.R',
-  'functions/select_temporal_genes.R',
-  'functions/score_differentiation_timing.R'
-)
-validation_cache_key <- list(
-  input_md5 = GSE122380_data$input_md5,
-  implementation_md5 = unname(tools::md5sum(cache_source_paths)),
-  package_versions = c(
-    DESeq2 = as.character(utils::packageVersion('DESeq2')),
-    edgeR = as.character(utils::packageVersion('edgeR'))
-  ),
-  expression_cpm_cutoff = expression_cpm_cutoff,
-  lrt_padj_cutoff = lrt_padj_cutoff,
-  vst_dynamic_range_cutoff = vst_dynamic_range_cutoff,
-  n_pcs = n_pcs,
-  heldout_cell_lines = heldout_cell_lines
-)
-
 # 1.2 define local helpers -----------------
-
-read_validation_cache <- function() {
-  if (!file.exists(validation_cache_path)) {
-    return(NULL)
-  }
-
-  cache <- readRDS(validation_cache_path)
-  if (!isTRUE(identical(cache$cache_key, validation_cache_key))) {
-    return(NULL)
-  }
-  cache
-}
-
-write_validation_cache <- function(results) {
-  score_table <- do.call(rbind, lapply(results, function(result) result$scores))
-  rownames(score_table) <- NULL
-
-  summary_table <- do.call(rbind, lapply(results, function(result) {
-    summary <- result$pca_summary
-    summary$heldout_cell_line <- result$heldout_cell_line
-    summary$n_temporal_genes <- length(result$temporal_genes)
-    summary[
-      ,
-      c(
-        'heldout_cell_line',
-        'gene_set',
-        'gene_count',
-        'n_temporal_genes',
-        'pc1_percent',
-        'pc2_percent',
-        'pc3_percent'
-      ),
-      drop = FALSE
-    ]
-  }))
-  rownames(summary_table) <- NULL
-
-  validation_cache <- list(
-    scores = score_table,
-    summary = summary_table,
-    results = results,
-    cache_key = validation_cache_key
-  )
-
-  dir.create(dirname(validation_cache_path), recursive = TRUE, showWarnings = FALSE)
-  temporary_cache_path <- paste0(validation_cache_path, '.tmp')
-  saveRDS(validation_cache, temporary_cache_path)
-  if (!file.rename(temporary_cache_path, validation_cache_path)) {
-    unlink(temporary_cache_path)
-    stop('Could not atomically update the validation cache.', call. = FALSE)
-  }
-  validation_cache
-}
 
 split_temporal_genes <- function(temporal_genes, training_metadata) {
   gene_day_means <- sapply(ordered_days, function(day_value) {
@@ -219,13 +113,6 @@ analyze_heldout_cell_line <- function(heldout_cell_line) {
     temporal_genes = temporal_selection$temporal_genes,
     training_metadata = training_metadata
   )
-  if (any(vapply(gene_sets, length, integer(1)) < 2L)) {
-    stop(
-      'Held-out cell line ', heldout_cell_line,
-      ' produced a temporal gene subset with fewer than two genes.',
-      call. = FALSE
-    )
-  }
 
   gene_set_results <- Map(
     score_gene_set,
@@ -262,32 +149,40 @@ analyze_heldout_cell_line <- function(heldout_cell_line) {
 
 # 2.0 run cell-line cross-validation -----------------
 
-validation_cache <- read_validation_cache()
-if (is.null(validation_cache)) {
-  validation_results <- list()
-} else {
-  validation_results <- validation_cache$results
-}
-
-for (heldout_cell_line in heldout_cell_lines) {
-  if (!is.null(validation_results[[heldout_cell_line]])) {
-    message('Using cached result for held-out cell line: ', heldout_cell_line)
-    next
-  }
-
-  validation_results[[heldout_cell_line]] <- analyze_heldout_cell_line(
-    heldout_cell_line
-  )
-  validation_results <- validation_results[
-    heldout_cell_lines[heldout_cell_lines %in% names(validation_results)]
+validation_results <- setNames(
+  lapply(heldout_cell_lines, analyze_heldout_cell_line),
+  heldout_cell_lines
+)
+score_table <- do.call(rbind, lapply(validation_results, function(result) result$scores))
+rownames(score_table) <- NULL
+summary_table <- do.call(rbind, lapply(validation_results, function(result) {
+  summary <- result$pca_summary
+  summary$heldout_cell_line <- result$heldout_cell_line
+  summary$n_temporal_genes <- length(result$temporal_genes)
+  summary[
+    ,
+    c(
+      'heldout_cell_line',
+      'gene_set',
+      'gene_count',
+      'n_temporal_genes',
+      'pc1_percent',
+      'pc2_percent',
+      'pc3_percent'
+    ),
+    drop = FALSE
   ]
-  write_validation_cache(validation_results)
-}
-
-validation_results <- validation_results[heldout_cell_lines]
-validation_cache <- write_validation_cache(validation_results)
+}))
+rownames(summary_table) <- NULL
+validation_output <- list(
+  scores = score_table,
+  summary = summary_table,
+  results = validation_results
+)
+dir.create(dirname(validation_results_path), recursive = TRUE, showWarnings = FALSE)
+saveRDS(validation_output, validation_results_path)
 
 # 3.0 report summary -----------------
 
-validation_cache$summary
-validation_cache_path
+validation_output$summary
+validation_results_path

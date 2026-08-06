@@ -1,17 +1,8 @@
-# ----
-# author:
-# - Zoheb Khan
-#
-# script path:
-# - functions/score_differentiation_timing.R
-# ----
-
 #' Score samples against an ordered reference differentiation trajectory
 #'
 #' `expression_matrix` must contain genes in rows and uniquely named samples in
 #' columns. `metadata` must contain one unique row per expression sample.
-#' `temporal_genes` are matched to unique gene row names; genes absent from the
-#' matrix are omitted and at least two genes must remain.
+#' `temporal_genes` are matched to gene row names; absent genes are omitted.
 #'
 #' PCA is trained on the reference samples after gene centering without scaling.
 #' Reference timepoint centroids are joined in ascending order. Each sample is
@@ -42,117 +33,26 @@ score_differentiation_timing <- function(
     reference_col = NULL,
     reference_values = NULL,
     n_pcs = 3L) {
-  if (!is.matrix(expression_matrix) && !is.data.frame(expression_matrix)) {
-    stop('expression_matrix must be a numeric matrix or data frame.', call. = FALSE)
-  }
-  if (is.data.frame(expression_matrix)) {
-    numeric_columns <- vapply(expression_matrix, is.numeric, logical(1))
-    if (!all(numeric_columns)) {
-      stop('Every expression_matrix column must be numeric.', call. = FALSE)
-    }
-  } else if (!is.numeric(expression_matrix)) {
-    stop('expression_matrix must be numeric.', call. = FALSE)
-  }
   expression_matrix <- as.matrix(expression_matrix)
 
   gene_ids <- rownames(expression_matrix)
   sample_ids <- colnames(expression_matrix)
-  if (
-    is.null(gene_ids) || anyNA(gene_ids) || any(!nzchar(gene_ids)) ||
-      anyDuplicated(gene_ids)
-  ) {
-    stop('expression_matrix row names must be nonblank, unique gene IDs.', call. = FALSE)
-  }
-  if (
-    is.null(sample_ids) || anyNA(sample_ids) || any(!nzchar(sample_ids)) ||
-      anyDuplicated(sample_ids)
-  ) {
-    stop('expression_matrix column names must be nonblank, unique sample IDs.', call. = FALSE)
-  }
-  if (!is.data.frame(metadata)) {
-    stop('metadata must be a data frame.', call. = FALSE)
-  }
-
-  required_columns <- c(sample_id_col, time_col)
-  missing_columns <- setdiff(required_columns, names(metadata))
-  if (length(missing_columns) > 0L) {
-    stop(
-      'metadata is missing columns: ',
-      paste(missing_columns, collapse = ', '),
-      '.',
-      call. = FALSE
-    )
-  }
   metadata_sample_ids <- as.character(metadata[[sample_id_col]])
-  if (
-    anyNA(metadata_sample_ids) || any(!nzchar(metadata_sample_ids)) ||
-      anyDuplicated(metadata_sample_ids)
-  ) {
-    stop('metadata sample IDs must be nonblank and unique.', call. = FALSE)
-  }
   metadata_rows <- match(sample_ids, metadata_sample_ids)
-  if (anyNA(metadata_rows)) {
-    missing_sample_ids <- sample_ids[is.na(metadata_rows)]
-    stop(
-      'metadata is missing expression samples: ',
-      paste(utils::head(missing_sample_ids, 5L), collapse = ', '),
-      '.',
-      call. = FALSE
-    )
-  }
   metadata <- metadata[metadata_rows, , drop = FALSE]
   metadata[[sample_id_col]] <- metadata_sample_ids[metadata_rows]
 
   sample_times <- metadata[[time_col]]
-  if (!is.numeric(sample_times) || anyNA(sample_times) || any(!is.finite(sample_times))) {
-    stop('time_col must contain finite numeric values.', call. = FALSE)
-  }
-  if (!is.character(temporal_genes)) {
-    stop('temporal_genes must be a character vector of gene IDs.', call. = FALSE)
-  }
-  if (anyNA(temporal_genes) || any(!nzchar(temporal_genes))) {
-    stop('temporal_genes must contain nonblank gene IDs.', call. = FALSE)
-  }
   retained_temporal_genes <- intersect(unique(temporal_genes), gene_ids)
-  if (length(retained_temporal_genes) < 2L) {
-    stop('At least two temporal genes must be present in expression_matrix.', call. = FALSE)
-  }
   retained_expression <- expression_matrix[retained_temporal_genes, , drop = FALSE]
-  if (anyNA(retained_expression) || any(!is.finite(retained_expression))) {
-    stop('Expression values for retained temporal genes must be finite and complete.', call. = FALSE)
-  }
 
   if (is.null(reference_col)) {
     reference_idx <- rep(TRUE, nrow(metadata))
   } else {
-    if (!reference_col %in% names(metadata)) {
-      stop('reference_col is not present in metadata.', call. = FALSE)
-    }
-    if (is.null(reference_values) || length(reference_values) == 0L) {
-      stop('reference_values must be supplied when reference_col is used.', call. = FALSE)
-    }
     reference_idx <- metadata[[reference_col]] %in% reference_values
   }
-  if (sum(reference_idx) < 3L) {
-    stop('At least three reference samples are required.', call. = FALSE)
-  }
   reference_times <- sample_times[reference_idx]
-  reference_timepoints <- sort(unique(reference_times))
-  if (length(reference_timepoints) < 2L) {
-    stop('Reference samples must span at least two timepoints.', call. = FALSE)
-  }
-
-  if (
-    length(n_pcs) != 1L || !is.numeric(n_pcs) || is.na(n_pcs) ||
-      !is.finite(n_pcs) || n_pcs != as.integer(n_pcs)
-  ) {
-    stop('n_pcs must be one finite integer.', call. = FALSE)
-  }
   n_pcs <- as.integer(n_pcs)
-  max_pcs <- min(sum(reference_idx) - 1L, length(retained_temporal_genes))
-  if (n_pcs < 1L || n_pcs > max_pcs) {
-    stop('n_pcs must be between 1 and ', max_pcs, ' for these inputs.', call. = FALSE)
-  }
 
   reference_matrix <- t(retained_expression[, reference_idx, drop = FALSE])
   pca_fit <- stats::prcomp(reference_matrix, center = TRUE, scale. = FALSE)
@@ -220,9 +120,6 @@ score_differentiation_timing <- function(
   segment_vectors <- end_points - start_points
   segment_lengths_squared <- rowSums(segment_vectors^2)
   keep_segments <- is.finite(segment_lengths_squared) & segment_lengths_squared > 0
-  if (!any(keep_segments)) {
-    stop('The reference centroid polyline has no nonzero-length segments.', call. = FALSE)
-  }
 
   start_points <- start_points[keep_segments, , drop = FALSE]
   segment_vectors <- segment_vectors[keep_segments, , drop = FALSE]

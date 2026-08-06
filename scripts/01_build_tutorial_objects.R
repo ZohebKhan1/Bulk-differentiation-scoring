@@ -1,71 +1,19 @@
-# ----
-# author:
-# - Zoheb Khan
-#
-# script path:
-# - scripts/01_build_tutorial_objects.R
-#
-# functions:
-# - functions/load_GSE122380_data.R
-# - functions/select_temporal_genes.R
-# - functions/score_differentiation_timing.R
-#
-# input data:
-# - data/GSE122380_metadata.rds
-# - data/GSE122380_counts.rds
-# - data/GSE122380_vst.rds
-# - tmp/GSE122380_leave_one_cell_line_out_validation.rds
-#
-# outputs:
-# - tmp/GSE122380_temporal_cluster_go_k4.rds
-# - docs/assets/figures/GSE122380_reference_pca_and_day_correlation.png
-# - docs/assets/figures/GSE122380_temporal_heatmap.png
-# - docs/assets/figures/GSE122380_temporal_clusters.png
-# - docs/assets/figures/GSE122380_pca_day.png
-# - docs/assets/figures/GSE122380_pc1_validation.png
-# - docs/assets/figures/GSE122380_timing_polyline.png
-# - docs/assets/figures/GSE122380_score_by_day.png
-# - docs/assets/figures/GSE122380_loo_cell_line_predictions.png
-# - docs/assets/figures/GSE122380_loo_summary.png
-# - docs/assets/figures/GSE122380_loo_timepoint_accuracy.png
-# ----
+library(AnnotationDbi)
+library(circlize)
+library(clusterProfiler)
+library(ComplexHeatmap)
+library(DESeq2)
+library(edgeR)
+library(ggplot2)
+library(ggrepel)
+library(org.Hs.eg.db)
+library(patchwork)
+library(ragg)
+library(scales)
+library(systemfonts)
+library(viridis)
 
-# 0.0 validate dependencies and source functions -----------------
-
-required_packages <- c(
-  'DESeq2',
-  'ComplexHeatmap',
-  'AnnotationDbi',
-  'circlize',
-  'clusterProfiler',
-  'edgeR',
-  'ggrepel',
-  'ggplot2',
-  'org.Hs.eg.db',
-  'patchwork',
-  'ragg',
-  'scales',
-  'systemfonts',
-  'viridis'
-)
-missing_packages <- required_packages[
-  !vapply(
-    required_packages,
-    requireNamespace,
-    logical(1),
-    quietly = TRUE
-  )
-]
-if (length(missing_packages) > 0L) {
-  stop(
-    'Missing required packages: ',
-    paste(missing_packages, collapse = ', '),
-    '.',
-    call. = FALSE
-  )
-}
-
-# source canonical loader, temporal selection, and timing scorer
+# source project functions
 source('functions/load_GSE122380_data.R', local = TRUE)
 source('functions/select_temporal_genes.R', local = TRUE)
 source('functions/score_differentiation_timing.R', local = TRUE)
@@ -79,8 +27,7 @@ n_timing_pcs = 3L
 
 docs_figure_dir = 'docs/assets/figures'
 tutorial_font_dir = 'tutorial/assets/fonts'
-loo_validation_cache_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
-cluster_go_cache_path = 'tmp/GSE122380_temporal_cluster_go_k4.rds'
+loo_validation_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
 
 reference_overview_figure_width = 7.20
 reference_overview_figure_height = 3.81
@@ -147,7 +94,7 @@ systemfonts::register_font(
 )
 # ComplexHeatmap measures legends on an internal PDF device. Nimbus Sans is
 # Helvetica-compatible, so the same fallback metrics preserve its layout.
-do.call(
+base::do.call(
   grDevices::pdfFonts,
   stats::setNames(grDevices::pdfFonts('Helvetica'), figure_family)
 )
@@ -527,7 +474,7 @@ plot_reference_pca <- function(pca_data, day_path, x_label, y_label, pca_gene_co
   )
   pca_data$phase <- factor(pca_data$phase, levels = names(phase_colors))
 
-  ellipse_df <- do.call(rbind, lapply(names(phase_colors), function(phase_name) {
+  ellipse_df <- base::do.call(rbind, lapply(names(phase_colors), function(phase_name) {
     phase_data <- pca_data[pca_data$phase == phase_name, c('PC1', 'PC2'), drop = FALSE]
     center <- colMeans(phase_data)
     covariance <- stats::cov(phase_data)
@@ -911,32 +858,7 @@ make_cluster_trajectory_plot <- function(cluster_name) {
     )
 }
 
-run_cluster_go_enrichment <- function(cluster_assignments, universe_gene_ids, cache_path) {
-  cache_key <- list(
-    input_md5 = GSE122380_data$input_md5,
-    implementation_md5 = unname(tools::md5sum(
-      'scripts/01_build_tutorial_objects.R'
-    )),
-    package_versions = c(
-      clusterProfiler = as.character(utils::packageVersion('clusterProfiler')),
-      org.Hs.eg.db = as.character(utils::packageVersion('org.Hs.eg.db'))
-    ),
-    cluster_assignments = cluster_assignments,
-    universe_gene_ids = sort(unique(sub('\\..*$', '', universe_gene_ids))),
-    go_top_n_terms = go_top_n_terms,
-    go_term_padj_cutoff = go_term_padj_cutoff,
-    go_min_gene_count_in_term = go_min_gene_count_in_term,
-    go_min_genes_in_go_db = go_min_genes_in_go_db,
-    go_max_genes_in_go_db = go_max_genes_in_go_db
-  )
-
-  if (file.exists(cache_path)) {
-    cached <- readRDS(cache_path)
-    if (isTRUE(identical(cached$cache_key, cache_key))) {
-      return(cached$cluster_go)
-    }
-  }
-
+run_cluster_go_enrichment <- function(cluster_assignments, universe_gene_ids) {
   cluster_go <- lapply(levels(cluster_assignments), function(cluster_name) {
     run_go_enrichment(
       gene_ids = names(cluster_assignments)[cluster_assignments == cluster_name],
@@ -944,15 +866,6 @@ run_cluster_go_enrichment <- function(cluster_assignments, universe_gene_ids, ca
     )
   })
   names(cluster_go) <- levels(cluster_assignments)
-
-  dir.create(dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
-  saveRDS(
-    list(
-      cache_key = cache_key,
-      cluster_go = cluster_go
-    ),
-    cache_path
-  )
   cluster_go
 }
 
@@ -1210,9 +1123,7 @@ temporal_day_z <- t(scale(t(temporal_day_means)))
 temporal_day_z[!is.finite(temporal_day_z)] <- 0
 
 temporal_smoothing <- lapply(seq_len(nrow(temporal_day_z)), function(gene_index) {
-  smoothing_warnings <- character()
-  smoothed_values <- withCallingHandlers(
-    {
+  suppressWarnings({
       loess_fit <- stats::loess(
         temporal_day_z[gene_index, ] ~ days,
         span = 0.55,
@@ -1221,38 +1132,10 @@ temporal_smoothing <- lapply(seq_len(nrow(temporal_day_z)), function(gene_index)
         control = stats::loess.control(surface = 'direct')
       )
       stats::predict(loess_fit, newdata = days)
-    },
-    warning = function(warning_condition) {
-      smoothing_warnings <- c(smoothing_warnings, conditionMessage(warning_condition))
-      invokeRestart('muffleWarning')
-    }
-  )
-  list(values = smoothed_values, warnings = smoothing_warnings)
+  })
 })
 names(temporal_smoothing) <- rownames(temporal_day_z)
-temporal_cluster_input <- do.call(
-  rbind,
-  lapply(temporal_smoothing, function(smoothing_result) smoothing_result$values)
-)
-if (any(!is.finite(temporal_cluster_input))) {
-  stop('Temporal-profile smoothing produced nonfinite values.', call. = FALSE)
-}
-smoothing_warning_gene_ids <- names(temporal_smoothing)[
-  vapply(
-    temporal_smoothing,
-    function(smoothing_result) length(smoothing_result$warnings) > 0L,
-    logical(1)
-  )
-]
-if (length(smoothing_warning_gene_ids) > 0L) {
-  message(
-    'LOESS issued numerical warnings for ',
-    length(smoothing_warning_gene_ids),
-    ' temporal profiles (',
-    paste(smoothing_warning_gene_ids, collapse = ', '),
-    '); all smoothed values were finite.'
-  )
-}
+temporal_cluster_input <- base::do.call(rbind, temporal_smoothing)
 temporal_cluster_input <- t(scale(t(temporal_cluster_input)))
 temporal_cluster_tree <- stats::hclust(
   stats::dist(temporal_cluster_input),
@@ -1260,7 +1143,7 @@ temporal_cluster_tree <- stats::hclust(
 )
 raw_clusters <- stats::cutree(temporal_cluster_tree, k = n_temporal_clusters)
 
-cluster_day_means <- do.call(rbind, lapply(sort(unique(raw_clusters)), function(cl) {
+cluster_day_means <- base::do.call(rbind, lapply(sort(unique(raw_clusters)), function(cl) {
   genes <- names(raw_clusters)[raw_clusters == cl]
   day_values <- colMeans(temporal_day_z[genes, , drop = FALSE])
   data.frame(
@@ -1354,7 +1237,7 @@ p_lrt_heatmap <- ComplexHeatmap::Heatmap(
 )
 
 cluster_genes <- names(gene_clusters)
-cluster_day_gene <- do.call(rbind, lapply(cluster_genes, function(gene) {
+cluster_day_gene <- base::do.call(rbind, lapply(cluster_genes, function(gene) {
   data.frame(
     gene_id = gene,
     cluster = gene_clusters[[gene]],
@@ -1372,8 +1255,7 @@ cluster_means <- stats::aggregate(
 
 cluster_go_results <- run_cluster_go_enrichment(
   cluster_assignments = gene_clusters,
-  universe_gene_ids = heatmap_genes,
-  cache_path = cluster_go_cache_path
+  universe_gene_ids = heatmap_genes
 )
 
 cluster_panel_plots <- lapply(levels(gene_clusters), function(cluster_name) {
@@ -1730,46 +1612,9 @@ p_score_by_day <- ggplot2::ggplot(timing_pca_data, ggplot2::aes(day_numeric, dif
 
 # 7.0 load cell-line cross-validation -----------------
 
-if (!file.exists(loo_validation_cache_path)) {
-  stop(
-    'Required cell-line cross-validation cache is missing. Run ',
-    'scripts/02_run_leave_one_cell_line_out_validation.R before rendering.',
-    call. = FALSE
-  )
-}
-
-validation_source_paths <- c(
-  'scripts/02_run_leave_one_cell_line_out_validation.R',
-  'functions/load_GSE122380_data.R',
-  'functions/select_temporal_genes.R',
-  'functions/score_differentiation_timing.R'
-)
-expected_validation_cache_key <- list(
-  input_md5 = GSE122380_data$input_md5,
-  implementation_md5 = unname(tools::md5sum(validation_source_paths)),
-  package_versions = c(
-    DESeq2 = as.character(utils::packageVersion('DESeq2')),
-    edgeR = as.character(utils::packageVersion('edgeR'))
-  ),
-  expression_cpm_cutoff = expression_cpm_cutoff,
-  lrt_padj_cutoff = lrt_padj_cutoff,
-  vst_dynamic_range_cutoff = vst_dynamic_range_cutoff,
-  n_pcs = n_timing_pcs,
-  heldout_cell_lines = sort(unique(as.character(metadata$cell_line)))
-)
-
-loo_cache <- readRDS(loo_validation_cache_path)
-if (!isTRUE(identical(loo_cache$cache_key, expected_validation_cache_key))) {
-  stop(
-    'The cell-line cross-validation cache is stale for the current inputs, ',
-    'code, parameters, or package versions. Rerun ',
-    'scripts/02_run_leave_one_cell_line_out_validation.R.',
-    call. = FALSE
-  )
-}
-
-loo_all_temporal_scores <- loo_cache$scores[
-  loo_cache$scores$gene_set == 'All temporal',
+loo_validation <- readRDS(loo_validation_path)
+loo_all_temporal_scores <- loo_validation$scores[
+  loo_validation$scores$gene_set == 'All temporal',
   ,
   drop = FALSE
 ]
@@ -1969,7 +1814,7 @@ loo_timepoint_errors$actual_day_factor <- factor(
   loo_timepoint_errors$actual_day,
   levels = days
 )
-loo_timepoint_summary <- do.call(
+loo_timepoint_summary <- base::do.call(
   rbind,
   lapply(days, function(day_value) {
     day_errors <- loo_timepoint_errors$absolute_error[

@@ -1,17 +1,8 @@
-# ----
-# author:
-# - Zoheb Khan
-#
-# script path:
-# - functions/select_temporal_genes.R
-# ----
-
 #' Select temporal genes from counts and VST expression
 #'
 #' Genes must pass a maximum day-mean TMM CPM threshold, a DESeq2 likelihood-
 #' ratio test for categorical day after adjustment for cell line, and a minimum
-#' day-mean VST range. Inputs are expected to come from the validated project
-#' loader; this function owns the model and filtering contract.
+#' day-mean VST range.
 #'
 #' @param counts Integer-like raw-count matrix with genes in rows and samples in
 #'   columns.
@@ -45,9 +36,6 @@ select_temporal_genes <- function(
   expression_genes <- names(max_day_mean_tmm_cpm)[
     max_day_mean_tmm_cpm >= expression_cpm_cutoff
   ]
-  if (length(expression_genes) == 0L) {
-    stop('No genes passed the day-mean TMM CPM threshold.', call. = FALSE)
-  }
 
   lrt_metadata <- metadata
   rownames(lrt_metadata) <- lrt_metadata$sample_id
@@ -76,9 +64,6 @@ select_temporal_genes <- function(
   lrt_genes <- lrt_results$gene_id[
     !is.na(lrt_results$padj) & lrt_results$padj < lrt_padj_cutoff
   ]
-  if (length(lrt_genes) == 0L) {
-    stop('No genes passed the DESeq2 LRT adjusted p-value threshold.', call. = FALSE)
-  }
 
   day_mean_vst <- sapply(days, function(day_value) {
     day_samples <- metadata$sample_id[metadata$day_numeric == day_value]
@@ -91,9 +76,6 @@ select_temporal_genes <- function(
   temporal_genes <- lrt_genes[
     vst_dynamic_range[lrt_genes] >= vst_dynamic_range_cutoff
   ]
-  if (length(temporal_genes) < 2L) {
-    stop('Fewer than two genes passed all temporal-gene filters.', call. = FALSE)
-  }
 
   summary <- data.frame(
     input_genes = nrow(counts),

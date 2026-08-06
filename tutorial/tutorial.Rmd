@@ -36,11 +36,7 @@ tutorial_dependency_text <- paste(
   ),
   collapse = '; '
 )
-tutorial_bioc_version <- if (requireNamespace('BiocManager', quietly = TRUE)) {
-  as.character(BiocManager::version())
-} else {
-  'not available'
-}
+tutorial_bioc_version <- as.character(BiocManager::version())
 ```
 
 <div class="tutorial-title-block">
@@ -50,7 +46,7 @@ tutorial_bioc_version <- if (requireNamespace('BiocManager', quietly = TRUE)) {
 <div class="tutorial-meta-block">
 <div><span>Author:</span> Zoheb Khan</div>
 <div><span>Created:</span> 2025-08-29</div>
-<div><span>Modified:</span> 2026-08-01</div>
+<div><span>Modified:</span> 2026-08-06</div>
 <div><span>Compiled:</span> `r format(Sys.Date(), '%Y-%m-%d')`</div>
 <div><span>Environment:</span> R `r as.character(getRversion())`; Bioconductor `r tutorial_bioc_version`</div>
 <div><span>Dependencies:</span> `r tutorial_dependency_text`</div>
@@ -80,7 +76,9 @@ tutorial_figure <- function(filename, alt_text, width = '96%') {
 
 # Introduction
 
-This tutorial develops a reference-trajectory score for bulk RNA-seq differentiation time courses. The worked example uses 192 processed GSE122380 samples spanning days 1 through 15 and 13 independent induced pluripotent stem cell lines. A reference time course defines the expression space and trajectory; each sample is then assigned a continuous position along that trajectory.
+Bulk RNA-seq differentiation studies are typically sampled at discrete timepoints, even though individual samples may progress through differentiation at different rates. This tutorial develops a reference-trajectory method that uses gene expression to estimate each sample's continuous position along a known differentiation time course.
+
+The method uses reference samples to define both the expression space and the trajectory through that space. It then assigns each sample a predicted reference time, a normalized differentiation score, and a distance from the fitted trajectory.
 
 The workflow has four operations:
 
@@ -89,7 +87,7 @@ The workflow has four operations:
 3. join ordered day centroids into a piecewise-linear trajectory; and
 4. project samples to their nearest position on that finite trajectory.
 
-The maintained analysis is in `scripts/01_build_tutorial_objects.R`. The reusable scorer is `functions/score_differentiation_timing.R`. The tutorial source lives only in `tutorial/`; `docs/` is the generated GitHub Pages site.
+The worked analysis is maintained in `scripts/01_build_tutorial_objects.R`, and the reusable scoring implementation is in `functions/score_differentiation_timing.R`. `tutorial/tutorial.Rmd` is the authoritative tutorial source; `docs/` contains the generated GitHub Pages site.
 
 ## Reuse the scorer
 
@@ -119,11 +117,11 @@ The primary inputs are:
 
 The output list contains `scores`, `pca_coordinates`, `pca_fit`, `centroid_polyline`, retained `temporal_genes`, and the `reference_time_range`. Because projection is clipped to finite centroid-to-centroid segments, predicted times and normalized scores are bounded by the first and last reference timepoints. A score outside 0 to 1 is therefore not part of this implementation’s contract.
 
-# Data and scope
+# Example data used in the workflow/tutorial
 
-The example uses [GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380), an iPSC-derived cardiomyocyte differentiation bulk RNA-seq time course reported by Strober, Elorbany, Rhodes and colleagues. The repository tracks aligned sample metadata, a raw-count matrix, and a variance-stabilized expression matrix. The active input contains no perturbation samples; all 192 samples define the full reference trajectory.
+The worked example uses processed data derived from public [NCBI GEO accession GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380), a bulk RNA-seq time course of human induced pluripotent stem cell differentiation into cardiomyocytes reported by Strober, Elorbany, Rhodes and colleagues. The analysis includes 192 samples from 13 cell lines collected across differentiation days 1 through 15. These samples form the reference cohort used for temporal-gene selection, PCA training, day-centroid trajectory fitting, and internal validation.
 
-The tracked RDS files are the reproducible starting point for this repository. The raw-read acquisition, QC, alignment, quantification, filtering, and construction of the tracked VST matrix are not included, so this tutorial does not claim end-to-end reproducibility from FASTQ files. Input dimensions and checksums are recorded in the repository’s `DATA.md`.
+The repository bundles aligned sample metadata, a raw gene-count matrix, and a variance-stabilized expression matrix. The active input contains no perturbation samples. These tracked RDS files are the reproducible starting point for the workflow; raw-read acquisition, sequencing and sample-level QC, alignment, quantification, upstream gene filtering, and construction of the VST matrix are outside the repository's scope. The tutorial therefore reproduces the analysis from processed inputs rather than from FASTQ files.
 
 ```{r sample-summary-table, echo=FALSE, results='asis'}
 sample_summary <- stats::aggregate(
@@ -177,30 +175,13 @@ tutorial_figure(
 
 # Scoring workflow
 
-```{=html}
-<div class="scoring-schematic" role="group" aria-label="Differentiation timing scoring workflow">
-  <div class="scoring-schematic-step">
-    <span class="scoring-schematic-number">1</span>
-    <strong>Temporal genes</strong>
-    <span>Selected in reference samples</span>
-  </div>
-  <div class="scoring-schematic-step">
-    <span class="scoring-schematic-number">2</span>
-    <strong>Reference PCA</strong>
-    <span>Centered, unscaled expression</span>
-  </div>
-  <div class="scoring-schematic-step">
-    <span class="scoring-schematic-number">3</span>
-    <strong>Day trajectory</strong>
-    <span>Ordered reference centroids</span>
-  </div>
-  <div class="scoring-schematic-step">
-    <span class="scoring-schematic-number">4</span>
-    <strong>Sample projection</strong>
-    <span>Predicted time, score, and distance</span>
-  </div>
-</div>
-```
+1. **Identify temporal genes in the reference samples.** Apply three filters in sequence and retain genes that pass all three:
+   - maximum day-mean TMM CPM at least 10;
+   - DESeq2 LRT adjusted \(p\)-value below \(10^{-7}\) for categorical day after accounting for cell line; and
+   - day-mean VST expression range at least 0.6.
+2. **Train the reference PCA.** Center, but do not variance-scale, the reference VST expression of the temporal genes and retain three PCs.
+3. **Construct the day trajectory.** Calculate the centroid for each reference day in retained PC space and connect the ordered centroids with finite line segments.
+4. **Project each sample.** Find its nearest point on the trajectory to obtain predicted time, a score normalized from 0 to 1, and squared projection distance.
 
 ## Select temporal genes
 
@@ -475,5 +456,6 @@ session_info_lines <- sub(
   '',
   utils::capture.output(utils::sessionInfo())
 )
+session_info_lines <- session_info_lines[nzchar(session_info_lines)]
 cat(session_info_lines, sep = '\n')
 ```
