@@ -46,7 +46,7 @@ tutorial_bioc_version <- as.character(BiocManager::version())
 <div class="tutorial-meta-block">
 <div><span>Author:</span> Zoheb Khan</div>
 <div><span>Created:</span> 2025-08-29</div>
-<div><span>Modified:</span> 2026-08-06</div>
+<div><span>Modified:</span> 2026-08-08</div>
 <div><span>Compiled:</span> `r format(Sys.Date(), '%Y-%m-%d')`</div>
 <div><span>Environment:</span> R `r as.character(getRversion())`; Bioconductor `r tutorial_bioc_version`</div>
 <div><span>Dependencies:</span> `r tutorial_dependency_text`</div>
@@ -87,7 +87,7 @@ The workflow has four operations:
 3. join ordered day centroids into a piecewise-linear trajectory; and
 4. project samples to their nearest position on that finite trajectory.
 
-The worked analysis is maintained in `scripts/01_build_tutorial_objects.R`, and the reusable scoring implementation is in `functions/score_differentiation_timing.R`. `tutorial/tutorial.Rmd` is the authoritative tutorial source; `docs/` contains the generated GitHub Pages site.
+The worked analysis is maintained in `scripts/01_build_tutorial_objects.R`. The reusable public implementations are `functions/select_temporal_genes.R` and `functions/score_differentiation_timing.R`. `tutorial/tutorial.Rmd` is the authoritative tutorial source; `docs/` contains the generated GitHub Pages site.
 
 ## Reuse the scorer
 
@@ -208,15 +208,37 @@ where \(\ell\) is the maximized model log likelihood. This tests whether categor
 source('functions/select_temporal_genes.R')
 
 temporal_selection <- select_temporal_genes(
-  counts = counts,
-  vst = vst,
+  raw_counts = counts,
+  vst_expression = vst,
   metadata = metadata,
-  expression_cpm_cutoff = 10,
-  lrt_padj_cutoff = 1e-7,
-  vst_dynamic_range_cutoff = 0.6
+  sample_id_col = 'sample_id',
+  time_col = 'day_numeric',
+  adjustment_covariates = 'cell_line'
 )
 temporal_genes <- temporal_selection$temporal_genes
 ```
+
+The three filtering thresholds default to the values used above: maximum
+day-mean TMM CPM at least 10, LRT adjusted \(p\)-value below \(10^{-7}\), and
+day-mean VST range at least 0.6. `adjustment_covariates` defines the metadata
+columns included in both LRT models; use `NULL` for an unadjusted time test or a
+character vector such as `c('cell_line', 'batch')` for multiple covariates. The
+function adds categorical time to the full model automatically. Numeric
+adjustment columns remain continuous; character and logical columns are treated
+as factors.
+
+To select temporal genes from one reference cohort, provide a metadata column
+and value together. For example,
+
+```r
+reference_group_col = 'condition',
+reference_group_value = 'control'
+```
+
+restricts CPM filtering, the LRT, and VST-range filtering to samples labeled
+`control` in `metadata$condition`. Omitting both arguments uses all samples.
+This pair controls which samples enter gene selection; it is not a DESeq2
+coefficient reference level, which does not affect this omnibus LRT.
 
 ```{r lrt-summary-table, echo=FALSE}
 lrt_display <- data.frame(

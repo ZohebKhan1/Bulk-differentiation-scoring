@@ -20,6 +20,38 @@ The repository bundles the processed inputs needed by the tutorial:
 
 Raw-read acquisition, sequencing and sample-level QC, alignment, quantification, upstream gene filtering, and construction of the VST matrix are not included. The worked example is therefore reproducible from these processed inputs rather than from FASTQ files.
 
+## Select temporal genes
+
+`select_temporal_genes()` takes raw integer counts, VST expression, and matching
+sample metadata. It calculates TMM CPM internally and tests categorical time
+with a DESeq2 likelihood-ratio test. Adjustment covariates are specified as
+metadata column names; the function constructs the full and reduced formulas.
+
+```r
+source('functions/select_temporal_genes.R')
+
+temporal_selection <- select_temporal_genes(
+  raw_counts = counts,
+  vst_expression = vst,
+  metadata = metadata,
+  sample_id_col = 'sample_id',
+  time_col = 'day_numeric',
+  adjustment_covariates = 'cell_line'
+)
+```
+
+The defaults are `expression_cpm_cutoff = 10`, `lrt_padj_cutoff = 1e-7`, and
+`vst_dynamic_range_cutoff = 0.6`. Use `adjustment_covariates = NULL` for an
+unadjusted categorical-time LRT or provide multiple metadata columns as a
+character vector. Numeric adjustment columns remain continuous; character and
+logical columns are treated as factors. To learn temporal genes from one
+cohort, supply both `reference_group_col` and `reference_group_value`, for
+example `condition` and `control`. These arguments select which samples enter
+gene selection rather than setting a DESeq2 coefficient baseline. The function
+checks that requested columns and values exist, that the matrices and metadata
+contain matching identifiers, and that the resulting DESeq2 model matrices are
+estimable before fitting them.
+
 ## Use the scorer
 
 The scorer is a single dependency-free R file. It expects normalized expression, matching sample metadata, and a temporal-gene set selected independently of the samples being evaluated. It does not normalize counts, select genes, draw figures, or write files.
@@ -98,6 +130,7 @@ The score measures timing relative to the chosen reference trajectory. It does n
 ├── functions/    Reusable temporal-gene selection and scoring functions
 ├── scripts/      Analysis, cross-validation, and site rendering
 ├── src/          Internal data-loading and validation helpers
+├── tests/        Focused public-function regression tests
 └── tutorial/     Maintained tutorial source and presentation assets
 ```
 

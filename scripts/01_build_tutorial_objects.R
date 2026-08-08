@@ -1095,9 +1095,12 @@ smooth_score_series <- function(y_values) {
 days <- sort(unique(metadata$day_numeric))
 day_by_sample <- stats::setNames(metadata$day_numeric, metadata$sample_id)
 temporal_selection <- select_temporal_genes(
-  counts = counts,
-  vst = vst,
+  raw_counts = counts,
+  vst_expression = vst,
   metadata = metadata,
+  sample_id_col = 'sample_id',
+  time_col = 'day_numeric',
+  adjustment_covariates = 'cell_line',
   expression_cpm_cutoff = expression_cpm_cutoff,
   lrt_padj_cutoff = lrt_padj_cutoff,
   vst_dynamic_range_cutoff = vst_dynamic_range_cutoff

@@ -137,9 +137,12 @@ run_leave_one_cell_line_out_validation <- function(
     training_sample_ids <- training_metadata$sample_id
 
     temporal_selection <- select_temporal_genes(
-      counts = counts[, training_sample_ids, drop = FALSE],
-      vst = vst[, training_sample_ids, drop = FALSE],
+      raw_counts = counts[, training_sample_ids, drop = FALSE],
+      vst_expression = vst[, training_sample_ids, drop = FALSE],
       metadata = training_metadata,
+      sample_id_col = 'sample_id',
+      time_col = 'day_numeric',
+      adjustment_covariates = 'cell_line',
       expression_cpm_cutoff = expression_cpm_cutoff,
       lrt_padj_cutoff = lrt_padj_cutoff,
       vst_dynamic_range_cutoff = vst_dynamic_range_cutoff
