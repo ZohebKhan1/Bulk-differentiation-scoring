@@ -195,7 +195,7 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <span>Modified:</span> 2026-08-06
 </div>
 <div>
-<span>Compiled:</span> 2026-08-06
+<span>Compiled:</span> 2026-08-07
 </div>
 <div>
 <span>Environment:</span> R 4.6.1; Bioconductor 3.23
@@ -215,7 +215,7 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <p>The workflow has four operations:</p>
 <ol style="list-style-type: decimal">
 <li>select temporal genes from the reference samples;</li>
-<li>train a centered, unscaled PCA model on those genes;</li>
+<li>train a centered, unscaled PCA model on the reference-timepoint mean profiles;</li>
 <li>join ordered day centroids into a piecewise-linear trajectory; and</li>
 <li>project samples to their nearest position on that finite trajectory.</li>
 </ol>
@@ -239,10 +239,9 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <li><code>metadata</code>: one row per expression sample;</li>
 <li><code>temporal_genes</code>: gene IDs selected independently of the samples being evaluated;</li>
 <li><code>sample_id_col</code> and <code>time_col</code>: metadata columns containing sample IDs and numeric reference times;</li>
-<li><code>reference_col</code> and <code>reference_values</code>: optional metadata fields that distinguish training samples from samples to score; and</li>
-<li><code>n_pcs</code>: the retained PCA dimensions used for projection, set to three here.</li>
+<li><code>reference_samples</code>: an optional vector of sample IDs that distinguishes training references from samples to score. If omitted, all samples are references.</li>
 </ul>
-<p>The output list contains <code>scores</code>, <code>pca_coordinates</code>, <code>pca_fit</code>, <code>centroid_polyline</code>, retained <code>temporal_genes</code>, and the <code>reference_time_range</code>. Because projection is clipped to finite centroid-to-centroid segments, predicted times and normalized scores are bounded by the first and last reference timepoints. A score outside 0 to 1 is therefore not part of this implementation’s contract.</p>
+<p>The scorer automatically retains the smallest number of PCs explaining at least 99% of the between-timepoint variance. The output list contains <code>scores</code>, <code>pca_coordinates</code>, <code>pca_fit</code>, <code>pca_variance</code>, the selected <code>n_pcs</code>, <code>centroid_polyline</code>, retained <code>temporal_genes</code>, and the <code>reference_time_range</code>. Because projection is clipped to finite centroid-to-centroid segments, predicted times and normalized scores are bounded by the first and last reference timepoints. A score outside 0 to 1 is therefore not part of this implementation’s contract.</p>
 </div>
 </div>
 <div id="example-data-used-in-the-workflowtutorial" class="section level1 hasAnchor" number="2">
@@ -428,7 +427,7 @@ Cell lines
 <li>DESeq2 LRT adjusted <span class="math inline">\(p\)</span>-value below <span class="math inline">\(10^{-7}\)</span> for categorical day after accounting for cell line; and</li>
 <li>day-mean VST expression range at least 0.6.</li>
 </ul></li>
-<li><strong>Train the reference PCA.</strong> Center, but do not variance-scale, the reference VST expression of the temporal genes and retain three PCs.</li>
+<li><strong>Train the reference PCA.</strong> Average temporal-gene VST expression within each reference day, center each gene without variance scaling, and retain the smallest number of PCs explaining at least 99% of the between-day variance.</li>
 <li><strong>Construct the day trajectory.</strong> Calculate the centroid for each reference day in retained PC space and connect the ordered centroids with finite line segments.</li>
 <li><strong>Project each sample.</strong> Find its nearest point on the trajectory to obtain predicted time, a score normalized from 0 to 1, and squared projection distance.</li>
 </ol>
@@ -524,18 +523,20 @@ Genes passing all filters and used for scoring
 </div>
 <div id="train-the-pca-reference-space" class="section level2 hasAnchor" number="3.2">
 <h2><span class="header-section-number">3.2</span> Train the PCA reference space<a href="#train-the-pca-reference-space" class="anchor-section" aria-label="Anchor link to header"></a></h2>
-<p>Let <span class="math inline">\(X \in \mathbb{R}^{n \times p}\)</span> be normalized reference expression for <span class="math inline">\(n\)</span> samples and <span class="math inline">\(p\)</span> temporal genes. PCA is trained after centering each gene without variance scaling. If <span class="math inline">\(\mathbf{x}_i\)</span> is sample <span class="math inline">\(i\)</span>, <span class="math inline">\(\boldsymbol{\mu}\)</span> is the reference gene-mean vector, and <span class="math inline">\(W_k\)</span> contains the retained loading vectors, then</p>
+<p>Let <span class="math inline">\(X \in \mathbb{R}^{n \times p}\)</span> be normalized reference expression for <span class="math inline">\(n\)</span> samples and <span class="math inline">\(p\)</span> temporal genes. For each of <span class="math inline">\(m\)</span> reference timepoints, the scorer first calculates its mean expression profile <span class="math inline">\(\mathbf{m}_j\)</span>. PCA is fitted to the <span class="math inline">\(m \times p\)</span> matrix of timepoint means after centering each gene without variance scaling. If <span class="math inline">\(\boldsymbol{\mu}_M\)</span> is the across-timepoint gene mean and <span class="math inline">\(W_k\)</span> contains the retained loading vectors, then</p>
 <p><span class="math display">\[
-\mathbf{z}_i = (\mathbf{x}_i - \boldsymbol{\mu}) W_k.
+\mathbf{m}_j = \frac{1}{|I_j|}\sum_{i \in I_j}\mathbf{x}_i,
+\qquad
+\mathbf{z}_i = (\mathbf{x}_i - \boldsymbol{\mu}_M) W_k.
 \tag{3}
 \]</span></p>
-<p>The scorer retains three PCs. PC1 is flipped for figure readability when needed so it increases with differentiation day; a sign flip does not alter Euclidean projections or scores.</p>
+<p>The scorer chooses the smallest <span class="math inline">\(k\)</span> for which cumulative PCA variance is at least 99%. This choice is made from reference-timepoint means only; samples being evaluated cannot affect it. The rule retained seven PCs in the complete reference fit and in every validation fold. PC1 is flipped for figure readability when needed so it increases with differentiation day; a sign flip does not alter Euclidean projections or scores.</p>
 <div id="fig-pca-day" class="figure-anchor">
 
 </div>
 <p><img class="tutorial-figure" src="assets/figures/GSE122380_pca_day.png" alt="PCA and PC1 versus day for all temporal genes and early and late cluster subsets." style="width:96%;"></p>
 <div class="tutorial-figure-caption">
-<strong>Figure 4.</strong> PCA and PC1-day relationships for the full temporal set and two descriptive cluster subsets. C1+C2 and C3+C4 are interpretive subsets, not alternative primary models.
+<strong>Figure 4.</strong> Individual samples projected into centered, unscaled PCA spaces learned from timepoint means for the full temporal set and two descriptive cluster subsets. C1+C2 and C3+C4 are interpretive subsets, not alternative primary models.
 </div>
 <p>The loading analysis annotates the largest PC1 and PC2 loadings and tests the top 500 genes in each PC1 direction for GO enrichment against the full temporal-gene universe.</p>
 <div id="fig-pc1-validation" class="figure-anchor">
@@ -587,10 +588,9 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 <span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,                  <span class="co"># sample metadata sheet</span></span>
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,      <span class="co"># temporally variable genes identified in step 3</span></span>
 <span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
-<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span>,</span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">n_pcs =</span> <span class="dv">3</span></span>
-<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>)</span>
-<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="fu">head</span>(timing_fit<span class="sc">$</span>scores)</span></code></pre></div>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>)</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a><span class="fu">head</span>(timing_fit<span class="sc">$</span>scores)</span></code></pre></div>
 <div id="fig-timing-polyline" class="figure-anchor">
 
 </div>
@@ -610,7 +610,7 @@ s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}
 </div>
 <div id="internal-cell-line-cross-validation" class="section level1 hasAnchor" number="4">
 <h1><span class="header-section-number">4</span> Internal cell-line cross-validation<a href="#internal-cell-line-cross-validation" class="anchor-section" aria-label="Anchor link to header"></a></h1>
-<p>Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out cell line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate.</p>
+<p>Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and polyline fitting using the remaining cell lines, then scores samples from the held-out cell line. The count-based DESeq2 LRT is refit in each fold. The tracked VST matrix is shared across folds because the upstream transformation pipeline is not available; the result is therefore internal validation conditional on this processed cohort, not an external transferability estimate. The tutorial uses a compatible optional local cache when present and otherwise runs the complete validation in memory without saving the result.</p>
 <p>Fold-specific temporal genes are also divided into maturation and progenitor sets by the sign of their Spearman correlation with day. The reported accuracy metrics use the complete temporal set. All 13 held-out cell lines contribute; cell line <code>19190</code> is omitted only from the per-cell-line panel grid so the display remains a balanced 3-by-4 layout.</p>
 <table class="sample-summary-table">
 <caption>
@@ -648,7 +648,7 @@ Held-out samples
 Correlation between actual and predicted day
 </td>
 <td style="text-align:right;">
-0.971
+0.979
 </td>
 </tr>
 <tr>
@@ -656,7 +656,7 @@ Correlation between actual and predicted day
 Squared Pearson correlation
 </td>
 <td style="text-align:right;">
-0.942
+0.959
 </td>
 </tr>
 <tr>
@@ -664,7 +664,7 @@ Squared Pearson correlation
 Mean absolute error
 </td>
 <td style="text-align:right;">
-0.70 days
+0.55 days
 </td>
 </tr>
 <tr>
@@ -672,7 +672,7 @@ Mean absolute error
 Median absolute error
 </td>
 <td style="text-align:right;">
-0.46 days
+0.30 days
 </td>
 </tr>
 <tr>
@@ -680,7 +680,7 @@ Median absolute error
 Predictions within 1 day
 </td>
 <td style="text-align:right;">
-79.7%
+82.3%
 </td>
 </tr>
 <tr>
@@ -688,7 +688,7 @@ Predictions within 1 day
 Predictions within 2 days
 </td>
 <td style="text-align:right;">
-94.8%
+97.9%
 </td>
 </tr>
 </tbody>

@@ -14,7 +14,8 @@ library(systemfonts)
 library(viridis)
 
 # source project functions
-source('functions/load_GSE122380_data.R', local = TRUE)
+source('src/load_GSE122380_data.R', local = TRUE)
+source('src/run_leave_one_cell_line_out_validation.R', local = TRUE)
 source('functions/select_temporal_genes.R', local = TRUE)
 source('functions/score_differentiation_timing.R', local = TRUE)
 
@@ -23,11 +24,10 @@ source('functions/score_differentiation_timing.R', local = TRUE)
 expression_cpm_cutoff = 10
 lrt_padj_cutoff = 1e-7
 vst_dynamic_range_cutoff = 0.6
-n_timing_pcs = 3L
 
 docs_figure_dir = 'docs/assets/figures'
 tutorial_font_dir = 'tutorial/assets/fonts'
-loo_validation_path = 'tmp/GSE122380_leave_one_cell_line_out_validation.rds'
+loo_validation_cache_path = 'cache/GSE122380_leave_one_cell_line_out_validation.rds'
 
 reference_overview_figure_width = 7.20
 reference_overview_figure_height = 3.81
@@ -879,16 +879,28 @@ make_cluster_go_plot <- function(cluster_name) {
 
 calculate_pca <- function(gene_ids, set_label) {
   set_pca_input <- t(vst[gene_ids, metadata$sample_id, drop = FALSE])
-  set_pca_fit <- stats::prcomp(set_pca_input, center = TRUE, scale. = FALSE)
-  set_pca_fit <- orient_pca_fit_by_day(set_pca_fit, day_by_sample)
+  set_day_means <- do.call(rbind, lapply(days, function(day_value) {
+    colMeans(set_pca_input[metadata$day_numeric == day_value, , drop = FALSE])
+  }))
+  set_pca_fit <- stats::prcomp(set_day_means, center = TRUE, scale. = FALSE)
   set_pca_var <- round(summary(set_pca_fit)$importance[2, 1:2] * 100, 2)
+  set_pca_coordinates <- sweep(
+    set_pca_input,
+    MARGIN = 2L,
+    STATS = set_pca_fit$center,
+    FUN = '-'
+  ) %*% set_pca_fit$rotation[, 1:2, drop = FALSE]
+  pc1_day_correlation <- stats::cor(set_pca_coordinates[, 'PC1'], metadata$day_numeric)
+  if (is.finite(pc1_day_correlation) && pc1_day_correlation < 0) {
+    set_pca_coordinates[, 'PC1'] <- -set_pca_coordinates[, 'PC1']
+  }
 
   gene_set_pca_data <- data.frame(
-    sample_id = rownames(set_pca_fit$x),
-    PC1 = set_pca_fit$x[, 1],
-    PC2 = set_pca_fit$x[, 2],
+    sample_id = rownames(set_pca_coordinates),
+    PC1 = set_pca_coordinates[, 1],
+    PC2 = set_pca_coordinates[, 2],
     day_numeric = metadata$day_numeric[
-      match(rownames(set_pca_fit$x), metadata$sample_id)
+      match(rownames(set_pca_coordinates), metadata$sample_id)
     ],
     gene_set = set_label,
     stringsAsFactors = FALSE
@@ -1336,30 +1348,25 @@ timing_fit <- score_differentiation_timing(
   metadata = metadata,
   temporal_genes = temporal_genes,
   sample_id_col = 'sample_id',
-  time_col = 'day_numeric',
-  n_pcs = n_timing_pcs
+  time_col = 'day_numeric'
 )
 pca_fit <- timing_fit$pca_fit
-unoriented_pc1 <- pca_fit$x[, 'PC1']
-pca_fit <- orient_pca_fit_by_day(pca_fit, day_by_sample)
-pc1_orientation <- if (isTRUE(all.equal(
-  pca_fit$x[, 'PC1'],
-  unoriented_pc1
-))) {
+centroid_polyline <- timing_fit$centroid_polyline
+pc1_day_correlation <- stats::cor(centroid_polyline$PC1, centroid_polyline$timepoint)
+pc1_orientation <- if (is.finite(pc1_day_correlation) && pc1_day_correlation < 0) -1 else 1
+pca_fit$x[, 'PC1'] <- pca_fit$x[, 'PC1'] * pc1_orientation
+pca_fit$rotation[, 'PC1'] <- pca_fit$rotation[, 'PC1'] * pc1_orientation
+
+timing_pca_variance_percent <- round(
+  timing_fit$pca_variance$variance_percent[
+    seq_len(timing_fit$n_pcs)
+  ],
   1
-} else {
-  -1
-}
-
-timing_pca_variance_percent <- round(summary(pca_fit)$importance[2, seq_len(n_timing_pcs)] * 100, 1)
-
-timing_pca_data <- data.frame(
-  sample_id = rownames(pca_fit$x),
-  PC1 = pca_fit$x[, 1],
-  PC2 = pca_fit$x[, 2],
-  day_numeric = metadata$day_numeric[match(rownames(pca_fit$x), metadata$sample_id)],
-  stringsAsFactors = FALSE
 )
+
+timing_pca_data <- timing_fit$pca_coordinates
+timing_pca_data$PC1 <- timing_pca_data$PC1 * pc1_orientation
+timing_pca_data$day_numeric <- timing_pca_data$observed_time
 
 early_cluster_labels <- utils::head(levels(gene_clusters), 2L)
 late_cluster_labels <- utils::tail(levels(gene_clusters), 2L)
@@ -1392,7 +1399,6 @@ p_pca_day <- (
   patchwork::plot_layout(widths = c(1.05, 0.95), heights = c(1, 1, 1)) &
   ggplot2::theme(plot.margin = ggplot2::margin(7, 8, 16, 8))
 
-centroid_polyline <- timing_fit$centroid_polyline
 names(centroid_polyline)[names(centroid_polyline) == 'timepoint'] <- 'day_numeric'
 centroid_polyline$PC1 <- centroid_polyline$PC1 * pc1_orientation
 
@@ -1610,9 +1616,61 @@ p_score_by_day <- ggplot2::ggplot(timing_pca_data, ggplot2::aes(day_numeric, dif
     )
   )
 
-# 7.0 load cell-line cross-validation -----------------
+# 7.0 load or run cell-line cross-validation -----------------
 
-loo_validation <- readRDS(loo_validation_path)
+loo_validation <- NULL
+if (file.exists(loo_validation_cache_path)) {
+  expected_validation_settings <- .leave_one_cell_line_out_validation_settings(
+    expression_cpm_cutoff,
+    lrt_padj_cutoff,
+    vst_dynamic_range_cutoff
+  )
+  cache_candidate <- tryCatch(
+    readRDS(loo_validation_cache_path),
+    error = function(error) NULL
+  )
+  cache_has_expected_structure <-
+    is.list(cache_candidate) &&
+    is.data.frame(cache_candidate$scores) &&
+    is.data.frame(cache_candidate$summary) &&
+    all(
+      c('sample_id', 'heldout_cell_line', 'gene_set', 'predicted_day') %in%
+        names(cache_candidate$scores)
+    ) &&
+    all(c('n_pcs', 'retained_variance_percent') %in% names(cache_candidate$summary))
+  cache_matches_settings <- isTRUE(cache_has_expected_structure) &&
+    identical(cache_candidate$settings, expected_validation_settings)
+  cache_matches_samples <- isTRUE(cache_has_expected_structure) &&
+    setequal(
+      unique(cache_candidate$scores$sample_id),
+      metadata$sample_id
+    ) &&
+    setequal(
+      unique(as.character(cache_candidate$scores$heldout_cell_line)),
+      unique(as.character(metadata$cell_line))
+    )
+  cache_matches_pca_contract <- isTRUE(cache_has_expected_structure) &&
+    isTRUE(all(cache_candidate$summary$n_pcs >= 1L)) &&
+    isTRUE(all(cache_candidate$summary$retained_variance_percent >= 99))
+
+  if (cache_matches_settings && cache_matches_samples && cache_matches_pca_contract) {
+    loo_validation <- cache_candidate
+    message('Using optional validation cache: ', loo_validation_cache_path)
+  } else {
+    message('Ignoring incompatible validation cache: ', loo_validation_cache_path)
+  }
+}
+if (is.null(loo_validation)) {
+  message('Validation cache unavailable; running leave-one-cell-line-out validation.')
+  loo_validation <- run_leave_one_cell_line_out_validation(
+    counts = counts,
+    vst = vst,
+    metadata = metadata,
+    expression_cpm_cutoff = expression_cpm_cutoff,
+    lrt_padj_cutoff = lrt_padj_cutoff,
+    vst_dynamic_range_cutoff = vst_dynamic_range_cutoff
+  )
+}
 loo_all_temporal_scores <- loo_validation$scores[
   loo_validation$scores$gene_set == 'All temporal',
   ,

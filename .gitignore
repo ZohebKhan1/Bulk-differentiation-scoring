@@ -16,8 +16,8 @@
 *.tmp
 
 # Analysis caches and scratch files
+/cache/
 /results/
-/tmp/
 /scratch/
 
 # Raw and preprocessing inputs

@@ -2,7 +2,7 @@
 
 Bulk RNA-seq differentiation studies are usually sampled at discrete timepoints, but individual samples can progress at different rates. `score_differentiation_timing()` places each sample along a reference differentiation time course using its expression profile rather than its collection day alone.
 
-The function learns a centered, unscaled PCA space from reference samples and preselected temporal genes. It connects the average position of successive reference timepoints, then projects each sample to the nearest point on that trajectory. The result includes a predicted reference time, a normalized score from 0 at the earliest reference timepoint to 1 at the latest, and the sample's distance from the fitted trajectory.
+The function learns a centered, unscaled PCA space from the mean temporal-gene expression profile at each reference timepoint. It automatically retains the smallest number of PCs explaining at least 99% of the between-timepoint variance, connects successive reference-timepoint centroids, and projects each sample to the nearest point on that finite polyline. The result includes a predicted reference time, a normalized score from 0 at the earliest reference timepoint to 1 at the latest, and the sample's distance from the fitted trajectory.
 
 [Open the rendered tutorial](https://zohebkhan1.github.io/pca-maturation-scoring/).
 
@@ -42,9 +42,9 @@ timing_fit <- score_differentiation_timing(
   temporal_genes = temporal_genes,
   sample_id_col = 'sample_id',
   time_col = 'day_numeric',
-  reference_col = 'condition',
-  reference_values = 'control',
-  n_pcs = 3
+  reference_samples = sample_metadata$sample_id[
+    sample_metadata$condition == 'control'
+  ]
 )
 
 head(timing_fit$scores)
@@ -68,18 +68,23 @@ BiocManager::install(c(
 ))
 ```
 
-Run the held-out validation before rendering the tutorial:
+Render the tutorial directly:
 
 ```bash
-Rscript scripts/02_run_leave_one_cell_line_out_validation.R
 Rscript scripts/03_render_tutorial_site.R
 ```
 
-The validation script writes its results to `tmp/` for the render script to use. This local intermediate avoids repeating the 13-fold cross-validation every time the tutorial is rendered. The render rebuilds the figures and writes the site to `docs/index.html`.
+The render uses `cache/GSE122380_leave_one_cell_line_out_validation.rds` when a compatible local cache exists. Otherwise it runs the complete leave-one-cell-line-out validation in memory and generates the figures from scratch without saving the validation object. To create the optional ignored cache explicitly before rendering, run:
+
+```bash
+Rscript scripts/02_run_leave_one_cell_line_out_validation.R
+```
+
+The reusable validation computation is defined in `src/run_leave_one_cell_line_out_validation.R`; the cache-building script is only a convenience entry point. The render writes the site to `docs/index.html`.
 
 ## Analysis details
 
-The GSE122380 example retains genes with a maximum day-mean TMM CPM of at least 10, a DESeq2 likelihood-ratio-test adjusted p-value below `1e-7`, and a day-mean VST range of at least 0.6. PCA is centered without variance scaling and retains three PCs. Ordered day centroids define the finite scoring trajectory.
+The GSE122380 example retains genes with a maximum day-mean TMM CPM of at least 10, a DESeq2 likelihood-ratio-test adjusted p-value below `1e-7`, and a day-mean VST range of at least 0.6. PCA is fitted to the unscaled mean VST profile at each training timepoint after gene centering. The smallest number of PCs explaining at least 99% of the training between-timepoint variance is retained automatically. Ordered timepoint centroids define the finite scoring polyline.
 
 Leave-one-cell-line-out validation repeats temporal-gene selection, PCA training, and trajectory fitting without the held-out cell line. The tracked VST matrix is shared across folds because its upstream construction pipeline is unavailable. The reported results therefore measure internal performance within this processed cohort, not transferability to another dataset or platform.
 
@@ -90,8 +95,9 @@ The score measures timing relative to the chosen reference trajectory. It does n
 ```text
 ├── data/         Processed GSE122380 inputs
 ├── docs/         Generated GitHub Pages site
-├── functions/    Data loading, temporal selection, and scoring functions
+├── functions/    Reusable temporal-gene selection and scoring functions
 ├── scripts/      Analysis, cross-validation, and site rendering
+├── src/          Internal data-loading and validation helpers
 └── tutorial/     Maintained tutorial source and presentation assets
 ```
 
