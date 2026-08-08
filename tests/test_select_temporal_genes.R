@@ -25,6 +25,7 @@ expect_error_message <- function(expression, expected_text) {
 }
 
 stopifnot(
+  identical(formals(select_temporal_genes)$adjustment_covariates, NULL),
   identical(formals(select_temporal_genes)$expression_cpm_cutoff, 10),
   identical(formals(select_temporal_genes)$lrt_padj_cutoff, 1e-7),
   identical(formals(select_temporal_genes)$vst_dynamic_range_cutoff, 0.6)
@@ -152,7 +153,8 @@ expect_error_message(
   select_temporal_genes(
     raw_counts,
     vst_expression,
-    missing_covariate_metadata
+    missing_covariate_metadata,
+    adjustment_covariates = 'cell_line'
   ),
   'Adjustment covariate `cell_line` contains missing, empty, or non-finite values'
 )

@@ -17,7 +17,7 @@
 #'   treated as a categorical factor in the DESeq2 LRT.
 #' @param adjustment_covariates Character vector of metadata columns included
 #'   in both the full and reduced DESeq2 models. Use `NULL` for an unadjusted
-#'   time LRT. The default adjusts for `cell_line`.
+#'   time LRT, which is the default.
 #' @param reference_group_col Optional metadata column used to select the
 #'   reference cohort. Supply this together with `reference_group_value`, or
 #'   leave both as `NULL` to use all samples.
@@ -36,7 +36,7 @@ select_temporal_genes <- function(
   metadata,
   sample_id_col = 'sample_id',
   time_col = 'day_numeric',
-  adjustment_covariates = 'cell_line',
+  adjustment_covariates = NULL,
   reference_group_col = NULL,
   reference_group_value = NULL,
   expression_cpm_cutoff = 10,

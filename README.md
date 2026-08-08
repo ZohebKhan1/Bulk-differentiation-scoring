@@ -40,11 +40,11 @@ temporal_selection <- select_temporal_genes(
 )
 ```
 
-The defaults are `expression_cpm_cutoff = 10`, `lrt_padj_cutoff = 1e-7`, and
-`vst_dynamic_range_cutoff = 0.6`. Use `adjustment_covariates = NULL` for an
-unadjusted categorical-time LRT or provide multiple metadata columns as a
-character vector. Numeric adjustment columns remain continuous; character and
-logical columns are treated as factors. To learn temporal genes from one
+The defaults are `adjustment_covariates = NULL`, `expression_cpm_cutoff = 10`,
+`lrt_padj_cutoff = 1e-7`, and `vst_dynamic_range_cutoff = 0.6`. Provide one or
+more metadata columns when the categorical-time LRT should adjust for variables
+such as batch or donor. Numeric adjustment columns remain continuous; character
+and logical columns are treated as factors. To learn temporal genes from one
 cohort, supply both `reference_group_col` and `reference_group_value`, for
 example `condition` and `control`. These arguments select which samples enter
 gene selection rather than setting a DESeq2 coefficient baseline. The function

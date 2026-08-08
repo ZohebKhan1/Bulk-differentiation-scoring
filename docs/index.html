@@ -233,14 +233,94 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>  <span class="st">&#39;score_differentiation_timing.R&#39;</span></span>
 <span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>)</span>
 <span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;score_differentiation_timing.R&#39;</span>)</span></code></pre></div>
-<p>The primary inputs are:</p>
-<ul>
-<li><code>expression_matrix</code>: normalized expression, with unique gene IDs in rows and unique sample IDs in columns;</li>
-<li><code>metadata</code>: one row per expression sample;</li>
-<li><code>temporal_genes</code>: gene IDs selected independently of the samples being evaluated;</li>
-<li><code>sample_id_col</code> and <code>time_col</code>: metadata columns containing sample IDs and numeric reference times;</li>
-<li><code>reference_samples</code>: an optional vector of sample IDs that distinguishes training references from samples to score. If omitted, all samples are references.</li>
-</ul>
+<div class="table-scroll" role="region" aria-label="Scorer input parameters" tabindex="0">
+<table class="sample-summary-table parameter-table">
+<caption>
+<span id="tab:scorer-input-table">Table 1.1: </span>Inputs to score_differentiation_timing().
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Parameter
+</th>
+<th style="text-align:left;">
+Default
+</th>
+<th style="text-align:left;">
+Purpose
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+<code>expression_matrix</code>
+</td>
+<td style="text-align:left;">
+Required
+</td>
+<td style="text-align:left;">
+Normalized genes-by-samples expression matrix with unique row and column IDs.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>metadata</code>
+</td>
+<td style="text-align:left;">
+Required
+</td>
+<td style="text-align:left;">
+One row per expression sample; sample IDs must match the matrix columns.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>temporal_genes</code>
+</td>
+<td style="text-align:left;">
+Required
+</td>
+<td style="text-align:left;">
+Temporal-gene IDs selected independently of the samples being evaluated.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>sample_id_col</code>
+</td>
+<td style="text-align:left;">
+<code>“sample_id”</code>
+</td>
+<td style="text-align:left;">
+Metadata column containing unique sample IDs.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>time_col</code>
+</td>
+<td style="text-align:left;">
+<code>“day_numeric”</code>
+</td>
+<td style="text-align:left;">
+Metadata column containing numeric reference times.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>reference_samples</code>
+</td>
+<td style="text-align:left;">
+<code>NULL</code>
+</td>
+<td style="text-align:left;">
+Sample IDs used to train the reference trajectory; all samples are used when omitted.
+</td>
+</tr>
+</tbody>
+</table>
+</div>
 <p>The scorer automatically retains the smallest number of PCs explaining at least 99% of the between-timepoint variance. The output list contains <code>scores</code>, <code>pca_coordinates</code>, <code>pca_fit</code>, <code>pca_variance</code>, the selected <code>n_pcs</code>, <code>centroid_polyline</code>, retained <code>temporal_genes</code>, and the <code>reference_time_range</code>. Because projection is clipped to finite centroid-to-centroid segments, predicted times and normalized scores are bounded by the first and last reference timepoints. A score outside 0 to 1 is therefore not part of this implementation’s contract.</p>
 </div>
 </div>
@@ -420,33 +500,239 @@ Cell lines
 </div>
 <div id="scoring-workflow" class="section level1 hasAnchor" number="3">
 <h1><span class="header-section-number">3</span> Scoring workflow<a href="#scoring-workflow" class="anchor-section" aria-label="Anchor link to header"></a></h1>
-<ol style="list-style-type: decimal">
-<li><strong>Identify temporal genes in the reference samples.</strong> Apply three filters in sequence and retain genes that pass all three:
-<ul>
-<li>maximum day-mean TMM CPM at least 10;</li>
-<li>DESeq2 LRT adjusted <span class="math inline">\(p\)</span>-value below <span class="math inline">\(10^{-7}\)</span> for categorical day after accounting for cell line; and</li>
-<li>day-mean VST expression range at least 0.6.</li>
-</ul></li>
-<li><strong>Train the reference PCA.</strong> Average temporal-gene VST expression within each reference day, center each gene without variance scaling, and retain the smallest number of PCs explaining at least 99% of the between-day variance.</li>
-<li><strong>Construct the day trajectory.</strong> Calculate the centroid for each reference day in retained PC space and connect the ordered centroids with finite line segments.</li>
-<li><strong>Project each sample.</strong> Find its nearest point on the trajectory to obtain predicted time, a score normalized from 0 to 1, and squared projection distance.</li>
+<ol class="workflow-flow" aria-label="Differentiation timing scoring workflow">
+<li>
+<div class="workflow-step-title">
+Select temporal genes
+</div>
+<div class="workflow-step-text">
+Apply expression, time-effect, and VST-range filters within the reference samples.
+</div>
+</li>
+<li>
+<div class="workflow-step-title">
+Train the reference PCA
+</div>
+<div class="workflow-step-text">
+Fit centered, unscaled PCA to the mean temporal-gene profile at each reference timepoint.
+</div>
+</li>
+<li>
+<div class="workflow-step-title">
+Construct the time trajectory
+</div>
+<div class="workflow-step-text">
+Connect the ordered reference-timepoint centroids with finite line segments.
+</div>
+</li>
+<li>
+<div class="workflow-step-title">
+Project samples
+</div>
+<div class="workflow-step-text">
+Return predicted time, normalized score, and distance from the reference trajectory.
+</div>
+</li>
 </ol>
 <div id="select-temporal-genes" class="section level2 hasAnchor" number="3.1">
 <h2><span class="header-section-number">3.1</span> Select temporal genes<a href="#select-temporal-genes" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Temporal-gene selection applies three filters in sequence. A gene is retained only if it satisfies every criterion.</p>
-<p>The LRT compares a full count model containing cell line and categorical differentiation day with a reduced model containing cell line alone:</p>
-<p><span class="math display">\[
-\mathrm{full}: y \sim \mathrm{cell\ line} + \mathrm{day},
-\qquad
-\mathrm{reduced}: y \sim \mathrm{cell\ line}.
-\tag{1}
-\]</span></p>
-<p>The likelihood-ratio statistic is</p>
-<p><span class="math display">\[
-\mathrm{LR} = 2\left(\ell_{\mathrm{full}} - \ell_{\mathrm{reduced}}\right),
-\tag{2}
-\]</span></p>
-<p>where <span class="math inline">\(\ell\)</span> is the maximized model log likelihood. This tests whether categorical day improves fit after accounting for cell-line structure; it does not assume a linear expression trend.</p>
+<p>The DESeq2 likelihood-ratio test always asks whether categorical time improves
+the count model. Users specify only the metadata columns that should be adjusted
+for, such as batch, donor, sex, or another known nuisance variable. The function
+then constructs the two models below.</p>
+<div class="table-scroll" role="region" aria-label="General DESeq2 likelihood-ratio design" tabindex="0">
+<table class="sample-summary-table parameter-table design-table">
+<caption>
+<span id="tab:lrt-design-table">Table 3.1: </span>General DESeq2 likelihood-ratio design for temporal-gene selection.
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Model
+</th>
+<th style="text-align:left;">
+Formula
+</th>
+<th style="text-align:left;">
+Purpose
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Full
+</td>
+<td style="text-align:left;">
+<code>~ adjustment_covariates + factor(time_col)</code>
+</td>
+<td style="text-align:left;">
+Models adjustment variables and the categorical time effect.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Reduced
+</td>
+<td style="text-align:left;">
+<code>~ adjustment_covariates</code>
+</td>
+<td style="text-align:left;">
+Models the same adjustment variables without time.
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>With no adjustment covariates, the reduced model is <code>~ 1</code>. DESeq2 calculates
+<span class="math inline">\(\mathrm{LR}=2(\ell_{\mathrm{full}}-\ell_{\mathrm{reduced}})\)</span>, where
+<span class="math inline">\(\ell\)</span> is the maximized model log likelihood. A small adjusted <span class="math inline">\(p\)</span>-value
+therefore indicates that categorical time improves fit after accounting for the
+selected covariates; the test does not assume a linear expression trend.</p>
+<div class="table-scroll" role="region" aria-label="Temporal gene selection parameters" tabindex="0">
+<table class="sample-summary-table parameter-table">
+<caption>
+<span id="tab:selector-parameter-table">Table 3.2: </span>Parameters for select_temporal_genes().
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Parameter
+</th>
+<th style="text-align:left;">
+Default
+</th>
+<th style="text-align:left;">
+Purpose
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+<code>raw_counts</code>
+</td>
+<td style="text-align:left;">
+Required
+</td>
+<td style="text-align:left;">
+Raw integer counts used for TMM CPM and the DESeq2 LRT.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>vst_expression</code>
+</td>
+<td style="text-align:left;">
+Required
+</td>
+<td style="text-align:left;">
+VST genes-by-samples expression matrix aligned to the raw counts.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>metadata</code>
+</td>
+<td style="text-align:left;">
+Required
+</td>
+<td style="text-align:left;">
+One row per matrix sample with the requested design and reference columns.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>sample_id_col</code>
+</td>
+<td style="text-align:left;">
+<code>“sample_id”</code>
+</td>
+<td style="text-align:left;">
+Metadata column containing unique sample IDs.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>time_col</code>
+</td>
+<td style="text-align:left;">
+<code>“day_numeric”</code>
+</td>
+<td style="text-align:left;">
+Numeric time column; modeled categorically in the LRT.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>adjustment_covariates</code>
+</td>
+<td style="text-align:left;">
+<code>NULL</code>
+</td>
+<td style="text-align:left;">
+Metadata columns included in both models; use NULL for no adjustment.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>reference_group_col</code>
+</td>
+<td style="text-align:left;">
+<code>NULL</code>
+</td>
+<td style="text-align:left;">
+Optional metadata column identifying reference groups.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>reference_group_value</code>
+</td>
+<td style="text-align:left;">
+<code>NULL</code>
+</td>
+<td style="text-align:left;">
+Value in reference_group_col defining the samples used for gene selection.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>expression_cpm_cutoff</code>
+</td>
+<td style="text-align:left;">
+<code>10</code>
+</td>
+<td style="text-align:left;">
+Minimum maximum day-mean TMM CPM.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>lrt_padj_cutoff</code>
+</td>
+<td style="text-align:left;">
+<code>1e-7</code>
+</td>
+<td style="text-align:left;">
+Maximum adjusted p-value for the categorical-time LRT.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<code>vst_dynamic_range_cutoff</code>
+</td>
+<td style="text-align:left;">
+<code>0.6</code>
+</td>
+<td style="text-align:left;">
+Minimum range across day-mean VST values.
+</td>
+</tr>
+</tbody>
+</table>
+</div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/select_temporal_genes.R&#39;</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>temporal_selection <span class="ot">&lt;-</span> <span class="fu">select_temporal_genes</span>(</span>
@@ -455,7 +741,7 @@ Cell lines
 <span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
 <span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
 <span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span>,</span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">adjustment_covariates =</span> <span class="st">&#39;cell_line&#39;</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">adjustment_covariates =</span> <span class="st">&#39;cell_line&#39;</span> <span class="co"># GSE122380-specific</span></span>
 <span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>)</span>
 <span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>temporal_genes <span class="ot">&lt;-</span> temporal_selection<span class="sc">$</span>temporal_genes</span></code></pre></div>
 <p>The three filtering thresholds default to the values used above: maximum
@@ -465,7 +751,8 @@ columns included in both LRT models; use <code>NULL</code> for an unadjusted tim
 character vector such as <code>c('cell_line', 'batch')</code> for multiple covariates. The
 function adds categorical time to the full model automatically. Numeric
 adjustment columns remain continuous; character and logical columns are treated
-as factors.</p>
+as factors. This worked dataset uses <code>cell_line</code>; another study might use
+<code>adjustment_covariates = 'batch'</code> or <code>c('batch', 'donor')</code> instead.</p>
 <p>To select temporal genes from one reference cohort, provide a metadata column
 and value together. For example,</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>reference_group_col <span class="ot">=</span> <span class="st">&#39;condition&#39;</span>,</span>
@@ -476,7 +763,7 @@ This pair controls which samples enter gene selection; it is not a DESeq2
 coefficient reference level, which does not affect this omnibus LRT.</p>
 <table class="sample-summary-table">
 <caption>
-<span id="tab:lrt-summary-table">Table 3.1: </span>Sequential temporal-gene filtering.
+<span id="tab:lrt-summary-table">Table 3.3: </span>Sequential temporal-gene filtering.
 </caption>
 <thead>
 <tr>
@@ -544,7 +831,7 @@ Genes passing all filters and used for scoring
 \mathbf{m}_j = \frac{1}{|I_j|}\sum_{i \in I_j}\mathbf{x}_i,
 \qquad
 \mathbf{z}_i = (\mathbf{x}_i - \boldsymbol{\mu}_M) W_k.
-\tag{3}
+\tag{1}
 \]</span></p>
 <p>The scorer chooses the smallest <span class="math inline">\(k\)</span> for which cumulative PCA variance is at least 99%. This choice is made from reference-timepoint means only; samples being evaluated cannot affect it. The rule retained seven PCs in the complete reference fit and in every validation fold. PC1 is flipped for figure readability when needed so it increases with differentiation day; a sign flip does not alter Euclidean projections or scores.</p>
 <div id="fig-pca-day" class="figure-anchor">
@@ -569,7 +856,7 @@ Genes passing all filters and used for scoring
 <p><span class="math display">\[
 \mathbf{c}_j = \frac{1}{|I_j|}\sum_{i \in I_j}\mathbf{z}_i,
 \qquad j = 1,\ldots,m.
-\tag{4}
+\tag{2}
 \]</span></p>
 <p>The ordered centroids define a piecewise-linear trajectory. Segment <span class="math inline">\(j\)</span> begins at <span class="math inline">\(\mathbf{a}_j=\mathbf{c}_j\)</span>, ends at <span class="math inline">\(\mathbf{b}_j=\mathbf{c}_{j+1}\)</span>, and has direction <span class="math inline">\(\mathbf{v}_j=\mathbf{b}_j-\mathbf{a}_j\)</span>. For sample <span class="math inline">\(i\)</span>, the fraction along segment <span class="math inline">\(j\)</span> is</p>
 <p><span class="math display">\[
@@ -579,7 +866,7 @@ Genes passing all filters and used for scoring
 \frac{\langle \mathbf{z}_i-\mathbf{a}_j,\mathbf{v}_j \rangle}
 {\langle \mathbf{v}_j,\mathbf{v}_j \rangle}
 \right).
-\tag{5}
+\tag{3}
 \]</span></p>
 <p>The closest finite-segment projection is selected:</p>
 <p><span class="math display">\[
@@ -587,22 +874,22 @@ Genes passing all filters and used for scoring
 \qquad
 j^\ast=\underset{j}{\operatorname{argmin}}
 \left\lVert\mathbf{z}_i-\mathbf{q}_{ij}\right\rVert^2.
-\tag{6}
+\tag{4}
 \]</span></p>
 <p>The corresponding predicted time and normalized score are</p>
 <p><span class="math display">\[
 \widehat{t}_i=t_{j^\ast}+\alpha_{ij^\ast}(t_{j^\ast+1}-t_{j^\ast}),
 \qquad
 s_i=\frac{\widehat{t}_i-t_{\mathrm{start}}}{t_{\mathrm{end}}-t_{\mathrm{start}}}.
-\tag{7}
+\tag{5}
 \]</span></p>
 <p>Zero-length centroid segments are omitted. The method assumes that ordered centroids describe a meaningful trajectory in retained PC space. A self-approaching or folded trajectory can make nearest-segment assignments biologically ambiguous; squared projection distance should therefore be inspected when adapting the scorer.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&#39;functions/score_differentiation_timing.R&#39;</span>)</span>
 <span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>timing_fit <span class="ot">&lt;-</span> <span class="fu">score_differentiation_timing</span>(</span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">expression_matrix =</span> vst,             <span class="co"># normalized gene expression (vst)</span></span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,                  <span class="co"># sample metadata sheet</span></span>
-<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,      <span class="co"># temporally variable genes identified in step 3</span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">expression_matrix =</span> vst,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">metadata =</span> metadata,</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">temporal_genes =</span> temporal_genes,</span>
 <span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">sample_id_col =</span> <span class="st">&#39;sample_id&#39;</span>,</span>
 <span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>  <span class="at">time_col =</span> <span class="st">&#39;day_numeric&#39;</span></span>
 <span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>)</span>
