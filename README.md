@@ -52,7 +52,7 @@ vst <- vst[, sample_ids, drop = FALSE]
 2. DESeq2 LRT: retain genes for which categorical time improves the count model, after any requested covariate adjustment.
 3. VST-range filter: retain genes with enough variation across reference timepoints in VST expression.
 
-<p align="center"><img src="docs/assets/diagrams/temporal_gene_selection.svg" alt="Reference counts and metadata pass through an expression filter, DESeq2 LRT, and VST range filter to produce temporal genes." width="560"></p>
+<p align="center"><img src="docs/assets/diagrams/temporal_gene_selection_v2.png" alt="Reference counts and metadata pass through an expression filter, DESeq2 LRT, and VST range filter to produce temporal genes." width="560"></p>
 
 ```r
 temporal_selection <- get_temporal_genes(
@@ -68,7 +68,7 @@ temporal_genes <- temporal_selection$temporal_genes
 
 `score_differentiation_timing()` fits centered, unscaled PCA to the mean temporal-gene profile at each reference timepoint. It connects the ordered timepoint centroids with line segments and projects each sample to its nearest point on that trajectory.
 
-<p align="center"><img src="docs/assets/diagrams/reference_trajectory.svg" alt="Temporal genes and reference samples define a PCA reference space and trajectory; samples are projected to return predicted time, score, and squared distance." width="700"></p>
+<p align="center"><img src="docs/assets/diagrams/reference_trajectory_v2.png" alt="Temporal genes and reference samples define a PCA reference space and trajectory; samples are projected to return predicted time, score, and squared distance." width="700"></p>
 
 ```r
 timing_fit <- score_differentiation_timing(
