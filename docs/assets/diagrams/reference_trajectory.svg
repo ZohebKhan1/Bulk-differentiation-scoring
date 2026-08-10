@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="670" viewBox="0 0 900 670" role="img" aria-labelledby="title desc">
+  <title id="title">Reference trajectory and sample scoring</title>
+  <desc id="desc">Temporal genes and reference samples define a PCA reference space, timepoint means define a trajectory, and new samples are projected to return predicted time, score, and squared distance.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="900" height="620" fill="#ffffff"/>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle">
+    <rect x="55" y="30" width="280" height="64" rx="10" fill="#e7f4ec" stroke="#28734d" stroke-width="2"/>
+    <text x="195" y="69" fill="#111827">Temporal genes</text>
+
+    <rect x="565" y="30" width="280" height="64" rx="10" fill="#eef5fb" stroke="#185f8a" stroke-width="2"/>
+    <text x="705" y="69" fill="#111827">Reference samples</text>
+
+    <line x1="195" y1="94" x2="355" y2="152" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <line x1="705" y1="94" x2="545" y2="152" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+    <rect x="260" y="154" width="380" height="64" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="450" y="193" fill="#111827">Reference PCA</text>
+
+    <line x1="450" y1="218" x2="450" y2="264" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="260" y="266" width="380" height="64" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="450" y="305" fill="#111827">Timepoint means</text>
+
+    <line x1="450" y1="330" x2="450" y2="376" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="260" y="378" width="380" height="64" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="450" y="417" fill="#111827">Reference trajectory</text>
+
+    <line x1="450" y1="442" x2="450" y2="488" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="260" y="490" width="380" height="64" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="450" y="529" fill="#111827">Project samples</text>
+
+    <line x1="450" y1="554" x2="450" y2="578" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="235" y="580" width="430" height="64" rx="10" fill="#fff4df" stroke="#a66a00" stroke-width="2"/>
+    <text x="450" y="607" fill="#111827"><tspan x="450" dy="0">Predicted time · score</tspan><tspan x="450" dy="25">· squared distance</tspan></text>
+  </g>
+</svg>

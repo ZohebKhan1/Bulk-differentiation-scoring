@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="550" viewBox="0 0 760 550" role="img" aria-labelledby="title desc">
+  <title id="title">Temporal gene selection</title>
+  <desc id="desc">Reference counts and metadata pass through an expression filter, a DESeq2 likelihood-ratio test, and a VST range filter to produce temporal genes.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="760" height="500" fill="#ffffff"/>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle">
+    <rect x="190" y="24" width="380" height="62" rx="10" fill="#eef5fb" stroke="#185f8a" stroke-width="2"/>
+    <text x="380" y="51" fill="#111827"><tspan x="380" dy="0">Reference counts</tspan><tspan x="380" dy="25">and metadata</tspan></text>
+
+    <line x1="380" y1="86" x2="380" y2="132" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="190" y="134" width="380" height="62" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="380" y="172" fill="#111827">Expression filter</text>
+
+    <line x1="380" y1="196" x2="380" y2="242" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="190" y="244" width="380" height="62" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="380" y="282" fill="#111827">DESeq2 LRT</text>
+
+    <line x1="380" y1="306" x2="380" y2="352" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="190" y="354" width="380" height="62" rx="10" fill="#f8fafc" stroke="#185f8a" stroke-width="2"/>
+    <text x="380" y="392" fill="#111827">VST range filter</text>
+
+    <line x1="380" y1="416" x2="380" y2="462" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="190" y="464" width="380" height="62" rx="10" fill="#e7f4ec" stroke="#28734d" stroke-width="2"/>
+    <text x="380" y="502" fill="#111827">Temporal genes</text>
+  </g>
+</svg>

@@ -52,14 +52,7 @@ vst <- vst[, sample_ids, drop = FALSE]
 2. DESeq2 LRT: retain genes for which categorical time improves the count model, after any requested covariate adjustment.
 3. VST-range filter: retain genes with enough variation across reference timepoints in VST expression.
 
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "16px", "primaryColor": "#eef5fb", "primaryTextColor": "#111827", "primaryBorderColor": "#185f8a", "lineColor": "#64748b"}}}%%
-flowchart TD
-    A["Reference counts<br/>and metadata"] --> B["Expression filter"]
-    B --> C["DESeq2 LRT<br/>for time"]
-    C --> D["VST-range filter"]
-    D --> E["Temporal genes"]
-```
+<img src="docs/assets/diagrams/temporal_gene_selection.svg" alt="Reference counts and metadata pass through an expression filter, DESeq2 LRT, and VST range filter to produce temporal genes." width="560">
 
 ```r
 temporal_selection <- get_temporal_genes(
@@ -74,6 +67,8 @@ temporal_genes <- temporal_selection$temporal_genes
 ## Define the reference differentiation trajectory
 
 `score_differentiation_timing()` fits centered, unscaled PCA to the mean temporal-gene profile at each reference timepoint. It connects the ordered timepoint centroids with line segments and projects each sample to its nearest point on that trajectory.
+
+<img src="docs/assets/diagrams/reference_trajectory.svg" alt="Temporal genes and reference samples define a PCA reference space and trajectory; samples are projected to return predicted time, score, and squared distance." width="700">
 
 ```r
 timing_fit <- score_differentiation_timing(
