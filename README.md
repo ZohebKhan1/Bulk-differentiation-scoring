@@ -53,11 +53,12 @@ vst <- vst[, sample_ids, drop = FALSE]
 3. VST-range filter: retain genes with enough variation across reference timepoints in VST expression.
 
 ```mermaid
-flowchart LR
-    A[Reference counts and metadata] --> B[1. Expression filter]
-    B --> C[2. DESeq2 LRT for time]
-    C --> D[3. VST-range filter]
-    D --> E[Temporal genes]
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "16px", "primaryColor": "#eef5fb", "primaryTextColor": "#111827", "primaryBorderColor": "#185f8a", "lineColor": "#64748b"}}}%%
+flowchart TD
+    A["Reference counts<br/>and metadata"] --> B["Expression filter"]
+    B --> C["DESeq2 LRT<br/>for time"]
+    C --> D["VST-range filter"]
+    D --> E["Temporal genes"]
 ```
 
 ```r

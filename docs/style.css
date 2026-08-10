@@ -42,7 +42,6 @@
   --tutorial-accent: #185f8a;
   --tutorial-code-font: "Fira Code Retina", "Fira Code", Consolas, "Liberation Mono", Menlo, Monaco, monospace;
   --tutorial-content-width: 770px;
-  --tutorial-sidebar-width: 300px;
 }
 
 .book,
@@ -58,53 +57,15 @@
 }
 
 .book .book-summary {
-  background: #fafafa;
-  border-right: 1px solid #e5e7eb;
-  width: var(--tutorial-sidebar-width);
+  display: none;
+}
+
+.book .book-header {
+  display: none;
 }
 
 .book.with-summary .book-body {
-  left: var(--tutorial-sidebar-width);
-}
-
-.book .book-summary nav a {
-  border-left: 3px solid transparent;
-  color: #263544;
-  display: block;
-  font-size: 0.95rem;
-  line-height: 1.28;
-  padding: 0.36rem 0.9rem;
-  text-decoration: none;
-}
-
-.book .book-summary nav ul {
-  list-style: none;
-  margin: 0;
-  padding-left: 0;
-}
-
-.book .book-summary nav ul ul {
-  padding-left: 0.95rem;
-}
-
-.book .book-summary nav a:hover,
-.book .book-summary nav a:focus,
-.book .book-summary nav li.active > a {
-  background: #eef5fb;
-  border-left-color: var(--tutorial-accent);
-  color: var(--tutorial-accent);
-}
-
-.book .book-summary nav li.toc-title a {
-  font-size: 0.98rem;
-  font-weight: 700;
-  padding: 0.82rem 0.95rem;
-}
-
-.book .book-header h1 {
-  color: #64748b;
-  font-family: "Latin Modern Sans", sans-serif;
-  font-size: 0.95rem;
+  left: 0;
 }
 
 .book .book-body .page-wrapper .page-inner {
@@ -480,16 +441,6 @@
 #session-information pre {
   color: #a5d6ff;
   font-size: 0.76em;
-}
-
-@media (max-width: 900px) {
-  .book .book-summary {
-    width: 280px;
-  }
-
-  .book.with-summary .book-body {
-    left: 280px;
-  }
 }
 
 @media (max-width: 700px) {
