@@ -12,11 +12,9 @@ This repository provides R functions that select genes whose expression changes 
 - [`score_differentiation_timing()`](functions/score_differentiation_timing.R) projects samples onto an ordered reference trajectory and returns predicted time, a normalized score, and projection distance.
 - [`run_leave_one_cell_line_out_validation()`](src/run_leave_one_cell_line_out_validation.R) refits temporal-gene selection and trajectory scoring for each held-out cell line and returns fold-level predictions and summaries.
 
-The scorer fits centered, unscaled PCA to the mean expression profile at each reference timepoint. It connects ordered timepoint centroids with finite line segments and projects each sample to its nearest segment. The function retains enough PCs to explain at least 99% of the between-timepoint variance.
-
 ## Quick start
 
-Temporal-gene selection requires `DESeq2` and `edgeR` from Bioconductor. Install them before running the example:
+Temporal-gene selection requires `DESeq2` and `edgeR` from Bioconductor. Install them before using the function:
 
 ```r
 install.packages("BiocManager")
@@ -26,35 +24,53 @@ BiocManager::install(c("DESeq2", "edgeR"))
 Run the following code in an R session that contains your own `counts`, `vst`, and `metadata` objects. The objects must satisfy the input requirements below.
 
 ```r
-function_base_url <- paste0(
-  "https://raw.githubusercontent.com/ZohebKhan1/",
-  "pca-maturation-scoring/main/functions"
+base_url <- "https://raw.githubusercontent.com/ZohebKhan1/pca-maturation-scoring/main/functions"
+
+download.file(
+  paste0(base_url, "/select_temporal_genes.R"),
+  "select_temporal_genes.R"
 )
 
-function_files <- c(
-  "select_temporal_genes.R",
+download.file(
+  paste0(base_url, "/score_differentiation_timing.R"),
   "score_differentiation_timing.R"
 )
 
-for (function_file in function_files) {
-  download.file(
-    url = paste(function_base_url, function_file, sep = "/"),
-    destfile = function_file,
-    mode = "wb"
-  )
-  source(function_file)
-}
+source("select_temporal_genes.R")
+source("score_differentiation_timing.R")
+```
 
+## Select temporal/time-dependent genes
+
+`select_temporal_genes()` selects genes that change across the reference time course. It applies three filters in sequence: an expression filter, a DESeq2 likelihood-ratio test (LRT) for categorical time, and a VST-range filter. Only genes that pass all three filters enter the trajectory model.
+
+```mermaid
+flowchart LR
+    A[Reference counts and metadata] --> B[1. Expression filter]
+    B --> C[2. DESeq2 LRT for time]
+    C --> D[3. VST-range filter]
+    D --> E[Temporal genes]
+```
+
+```r
 temporal_selection <- select_temporal_genes(
   raw_counts = counts,
   vst_expression = vst,
   metadata = metadata
 )
 
+temporal_genes <- temporal_selection$temporal_genes
+```
+
+## Define the reference differentiation trajectory
+
+`score_differentiation_timing()` fits centered, unscaled PCA to the mean temporal-gene profile at each reference timepoint. It connects the ordered timepoint centroids with finite line segments and projects each sample to its nearest point on the trajectory.
+
+```r
 timing_fit <- score_differentiation_timing(
   expression_matrix = vst,
   metadata = metadata,
-  temporal_genes = temporal_selection$temporal_genes
+  temporal_genes = temporal_genes
 )
 
 timing_fit$scores[, c(
@@ -66,7 +82,7 @@ timing_fit$scores[, c(
 )]
 ```
 
-The code fits and scores the samples supplied in `metadata` as one reference cohort. For new samples, select genes and fit the trajectory on independent reference samples. Then supply those IDs through `reference_samples`. Add `adjustment_covariates` when your study design includes variables such as batch, donor, or cell line.
+The result reports predicted time on the reference scale, an endpoint-scaled score, and distance from the fitted trajectory. For new samples, select genes and fit the trajectory using independent reference samples, then supply their IDs through `reference_samples`.
 
 ## Input requirements
 
