@@ -1,10 +1,10 @@
 # Differentiation timing score
 
+[See differentiation maturation scoring example here.](https://zohebkhan1.github.io/pca-maturation-scoring/)
+
 Use this workflow with bulk RNA-seq samples from a differentiation time course to estimate how far each sample has progressed through differentiation. The scoring function defines a reference-specific transcriptomic clock in principal-component space.
 
 This repository provides R functions that select genes whose expression changes across an ordered reference time course and project samples onto the differentiation trajectory. Given raw counts, variance-stabilized expression, and aligned metadata, the workflow returns a predicted time on the reference scale, an endpoint-scaled differentiation score, and a squared projection distance.
-
-The [rendered tutorial](https://zohebkhan1.github.io/pca-maturation-scoring/) describes the method, worked example, figures, validation, and adaptation. This README introduces the functions and a quick start.
 
 ## API
 
