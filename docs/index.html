@@ -218,7 +218,7 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <div id="function-inputs" class="section level1 hasAnchor" number="2">
 <h1><span class="header-section-number">2</span> Function inputs<a href="#function-inputs" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <p><code>get_temporal_genes()</code> uses integer-like raw counts, VST expression, and sample metadata. It selects genes inside the reference cohort. <code>score_differentiation_timing()</code> uses normalized expression and those selected genes to fit the reference PCA and trajectory.</p>
-<p>For a reference-only analysis, the scorer uses all supplied samples as the reference. To score new samples, provide <code>reference_samples</code> so that PCA and the trajectory use only the independent reference cohort. Reference samples must have finite timepoints. New non-reference samples can have missing timepoints because the scorer predicts their time rather than using an observed time.</p>
+<p>For a reference-only analysis, the scorer uses all supplied samples as the reference. To score new samples, pass <code>reference_samples</code> so that PCA and the trajectory use only the independent reference cohort. Reference samples must have finite timepoints. New non-reference samples can have missing timepoints because the scorer predicts their time rather than using an observed time.</p>
 <p>The scorer fits PCA to timepoint means, centers genes, and does not scale them to unit variance. It retains the smallest number of PCs that explain at least 99% of the variance between reference timepoint means. The PCA sign is arbitrary; reversing a PC for a figure does not change distances or scores.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">download.file</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="st">&#39;https://raw.githubusercontent.com/ZohebKhan1/pca-maturation-scoring/main/functions/get_temporal_genes.R&#39;</span>,</span>
@@ -237,7 +237,7 @@ PCA-based scoring of differentiation timing from bulk RNA-seq time-course data
 <div id="reference-dataset" class="section level1 hasAnchor" number="3">
 <h1><span class="header-section-number">3</span> Reference dataset<a href="#reference-dataset" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <p>The example uses processed data from <a href="https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380">NCBI GEO accession GSE122380</a>, a bulk RNA-seq time course of human induced pluripotent stem cell differentiation into cardiomyocytes. The reference contains 192 samples from 13 cell lines collected across differentiation days 1 through 15.</p>
-<p>The repository provides aligned metadata, a raw gene-count matrix, and a VST expression matrix. The tutorial starts from these processed objects. It does not reconstruct the upstream FASTQ processing, read alignment, gene quantification, or VST transformation.</p>
+<p>The repository includes aligned metadata, a raw gene-count matrix, and a VST expression matrix. The tutorial starts from these processed objects. It does not reconstruct the upstream FASTQ processing, read alignment, gene quantification, or VST transformation.</p>
 <div class="table-scroll" role="region" aria-label="Samples and cell lines by differentiation day" tabindex="0">
 <table class="sample-summary-table">
 <caption>
@@ -407,7 +407,7 @@ Cell lines
 <div class="tutorial-figure-caption">
 <strong>Figure 1.</strong> GSE122380 reference time course and day-level expression correlation. <strong>a.</strong> PCA using the top 10% most variable VST genes, colored by differentiation day. <strong>b.</strong> Pearson correlation between day-mean profiles from the same variable-gene set.
 </div>
-<p>The day ordering supports fitting a reference trajectory. This overview PCA is separate from the scoring PCA, which uses the selected temporal genes and reference timepoint means.</p>
+<p>The day ordering is consistent with a reference trajectory. The overview PCA is separate from the scoring PCA, which uses the selected temporal genes and reference timepoint means.</p>
 </div>
 <div id="scoring-workflow" class="section level1 hasAnchor" number="4">
 <h1><span class="header-section-number">4</span> Scoring workflow<a href="#scoring-workflow" class="anchor-section" aria-label="Anchor link to header"></a></h1>
@@ -508,7 +508,7 @@ Genes passing all filters and used for scoring
 </div>
 <div id="fit-the-pca-reference-space" class="section level2 hasAnchor" number="4.2">
 <h2><span class="header-section-number">4.2</span> Fit the PCA reference space<a href="#fit-the-pca-reference-space" class="anchor-section" aria-label="Anchor link to header"></a></h2>
-<p>The scoring PCA is trained on reference timepoint means rather than on individual samples. This makes the reference path represent the average expression at each observed timepoint and prevents samples with larger within-timepoint variation from defining the path directly.</p>
+<p>The scorer fits PCA to reference timepoint means, not individual samples. The resulting path represents mean expression at each observed timepoint; within-timepoint variation does not define the path.</p>
 <p>Let <span class="math inline">\(\mathbf{x}_i\)</span> be the normalized expression vector for sample <span class="math inline">\(i\)</span>, restricted to the selected temporal genes. For a reference timepoint <span class="math inline">\(t\)</span>, let <span class="math inline">\(\bar{\mathbf{x}}_t\)</span> be the mean vector across its reference samples:</p>
 <p><span class="math display">\[
 \bar{\mathbf{x}}_t = \frac{1}{n_t}\sum_{i:\,t_i=t} \mathbf{x}_i.

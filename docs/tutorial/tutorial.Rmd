@@ -90,7 +90,7 @@ The workflow returns a predicted time on the reference scale, a differentiation 
 
 `get_temporal_genes()` uses integer-like raw counts, VST expression, and sample metadata. It selects genes inside the reference cohort. `score_differentiation_timing()` uses normalized expression and those selected genes to fit the reference PCA and trajectory.
 
-For a reference-only analysis, the scorer uses all supplied samples as the reference. To score new samples, provide `reference_samples` so that PCA and the trajectory use only the independent reference cohort. Reference samples must have finite timepoints. New non-reference samples can have missing timepoints because the scorer predicts their time rather than using an observed time.
+For a reference-only analysis, the scorer uses all supplied samples as the reference. To score new samples, pass `reference_samples` so that PCA and the trajectory use only the independent reference cohort. Reference samples must have finite timepoints. New non-reference samples can have missing timepoints because the scorer predicts their time rather than using an observed time.
 
 The scorer fits PCA to timepoint means, centers genes, and does not scale them to unit variance. It retains the smallest number of PCs that explain at least 99% of the variance between reference timepoint means. The PCA sign is arbitrary; reversing a PC for a figure does not change distances or scores.
 
@@ -114,7 +114,7 @@ source('score_differentiation_timing.R')
 
 The example uses processed data from [NCBI GEO accession GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380), a bulk RNA-seq time course of human induced pluripotent stem cell differentiation into cardiomyocytes. The reference contains 192 samples from 13 cell lines collected across differentiation days 1 through 15.
 
-The repository provides aligned metadata, a raw gene-count matrix, and a VST expression matrix. The tutorial starts from these processed objects. It does not reconstruct the upstream FASTQ processing, read alignment, gene quantification, or VST transformation.
+The repository includes aligned metadata, a raw gene-count matrix, and a VST expression matrix. The tutorial starts from these processed objects. It does not reconstruct the upstream FASTQ processing, read alignment, gene quantification, or VST transformation.
 
 ```{r sample-summary-table, echo=FALSE, results='asis'}
 sample_summary <- stats::aggregate(
@@ -166,7 +166,7 @@ tutorial_figure(
 
 <div class="tutorial-figure-caption"><strong>Figure 1.</strong> GSE122380 reference time course and day-level expression correlation. <strong>a.</strong> PCA using the top 10% most variable VST genes, colored by differentiation day. <strong>b.</strong> Pearson correlation between day-mean profiles from the same variable-gene set.</div>
 
-The day ordering supports fitting a reference trajectory. This overview PCA is separate from the scoring PCA, which uses the selected temporal genes and reference timepoint means.
+The day ordering is consistent with a reference trajectory. The overview PCA is separate from the scoring PCA, which uses the selected temporal genes and reference timepoint means.
 
 # Scoring workflow
 
@@ -261,7 +261,7 @@ The cluster trajectories summarize expression patterns. They are not additional 
 
 ## Fit the PCA reference space
 
-The scoring PCA is trained on reference timepoint means rather than on individual samples. This makes the reference path represent the average expression at each observed timepoint and prevents samples with larger within-timepoint variation from defining the path directly.
+The scorer fits PCA to reference timepoint means, not individual samples. The resulting path represents mean expression at each observed timepoint; within-timepoint variation does not define the path.
 
 Let \(\mathbf{x}_i\) be the normalized expression vector for sample \(i\), restricted to the selected temporal genes. For a reference timepoint \(t\), let \(\bar{\mathbf{x}}_t\) be the mean vector across its reference samples:
 
