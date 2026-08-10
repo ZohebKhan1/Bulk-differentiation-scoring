@@ -2,47 +2,55 @@
 
 [See differentiation maturation scoring example here.](https://zohebkhan1.github.io/pca-maturation-scoring/)
 
-Use this workflow with bulk RNA-seq samples from a differentiation time course to estimate how far each sample has progressed through differentiation. The scoring function defines a reference-specific transcriptomic clock in principal-component space.
+If you have bulk RNA-seq samples collected across a differentiation time course, you can use the time-course expression pattern to estimate where other samples fall along that course. This workflow defines a transcriptomic clock in principal-component space.
 
-This repository provides R functions that select genes whose expression changes across an ordered reference time course and project samples onto the differentiation trajectory. Given raw counts, variance-stabilized expression, and aligned metadata, the workflow returns a predicted time on the reference scale, an endpoint-scaled differentiation score, and a squared projection distance.
+Given raw counts, variance-stabilized expression, and sample metadata, the workflow selects genes that change over the reference time course and projects samples onto the resulting trajectory. It returns predicted reference time, a score scaled between the reference endpoints, and squared distance from the trajectory.
 
 ## API
 
-- [`select_temporal_genes()`](functions/select_temporal_genes.R) selects genes with time-dependent expression from raw counts, VST expression, and aligned sample metadata.
-- [`score_differentiation_timing()`](functions/score_differentiation_timing.R) projects samples onto an ordered reference trajectory and returns predicted time, a normalized score, and projection distance.
-- [`run_leave_one_cell_line_out_validation()`](src/run_leave_one_cell_line_out_validation.R) refits temporal-gene selection and trajectory scoring for each held-out cell line and returns fold-level predictions and summaries.
+- [`get_temporal_genes()`](functions/get_temporal_genes.R) selects genes with time-dependent expression using raw counts, VST expression, and sample metadata.
+- [`score_differentiation_timing()`](functions/score_differentiation_timing.R) fits a reference trajectory and projects samples onto it.
+- [`run_loo_maturation()`](functions/run_loo_maturation.R) repeats gene selection and trajectory scoring while holding out each cell line for validation.
 
 ## Quick start
 
-Temporal-gene selection requires `DESeq2` and `edgeR` from Bioconductor. Install them before using the function:
+Temporal-gene selection requires `DESeq2` and `edgeR` from Bioconductor:
 
 ```r
 install.packages("BiocManager")
 BiocManager::install(c("DESeq2", "edgeR"))
 ```
 
-Run the following code in an R session that contains your own `counts`, `vst`, and `metadata` objects. The objects must satisfy the input requirements below.
+The code below uses your own `counts`, `vst`, and `metadata` objects. It downloads the two functions used for gene selection and scoring; it does not download the example data.
 
 ```r
-base_url <- "https://raw.githubusercontent.com/ZohebKhan1/pca-maturation-scoring/main/functions"
-
 download.file(
-  paste0(base_url, "/select_temporal_genes.R"),
-  "select_temporal_genes.R"
+  "https://raw.githubusercontent.com/ZohebKhan1/pca-maturation-scoring/main/functions/get_temporal_genes.R",
+  "get_temporal_genes.R",
+  mode = "wb"
+)
+download.file(
+  "https://raw.githubusercontent.com/ZohebKhan1/pca-maturation-scoring/main/functions/score_differentiation_timing.R",
+  "score_differentiation_timing.R",
+  mode = "wb"
 )
 
-download.file(
-  paste0(base_url, "/score_differentiation_timing.R"),
-  "score_differentiation_timing.R"
-)
-
-source("select_temporal_genes.R")
+source("get_temporal_genes.R")
 source("score_differentiation_timing.R")
+
+# Keep both matrices in metadata sample order.
+sample_ids <- as.character(metadata$sample_id)
+counts <- counts[, sample_ids, drop = FALSE]
+vst <- vst[, sample_ids, drop = FALSE]
 ```
 
 ## Select temporal/time-dependent genes
 
-`select_temporal_genes()` selects genes that change across the reference time course. It applies three filters in sequence: an expression filter, a DESeq2 likelihood-ratio test (LRT) for categorical time, and a VST-range filter. Only genes that pass all three filters enter the trajectory model.
+`get_temporal_genes()` applies three filters within the reference samples. A gene must pass all three filters to be used for the trajectory:
+
+1. Expression filter: retain genes with sufficient expression across reference timepoints.
+2. DESeq2 LRT: retain genes for which categorical time improves the count model, after any requested covariate adjustment.
+3. VST-range filter: retain genes with enough variation across reference timepoints in VST expression.
 
 ```mermaid
 flowchart LR
@@ -53,7 +61,7 @@ flowchart LR
 ```
 
 ```r
-temporal_selection <- select_temporal_genes(
+temporal_selection <- get_temporal_genes(
   raw_counts = counts,
   vst_expression = vst,
   metadata = metadata
@@ -64,7 +72,7 @@ temporal_genes <- temporal_selection$temporal_genes
 
 ## Define the reference differentiation trajectory
 
-`score_differentiation_timing()` fits centered, unscaled PCA to the mean temporal-gene profile at each reference timepoint. It connects the ordered timepoint centroids with finite line segments and projects each sample to its nearest point on the trajectory.
+`score_differentiation_timing()` fits centered, unscaled PCA to the mean temporal-gene profile at each reference timepoint. It connects the ordered timepoint centroids with line segments and projects each sample to its nearest point on that trajectory.
 
 ```r
 timing_fit <- score_differentiation_timing(
@@ -82,30 +90,30 @@ timing_fit$scores[, c(
 )]
 ```
 
-The result reports predicted time on the reference scale, an endpoint-scaled score, and distance from the fitted trajectory. For new samples, select genes and fit the trajectory using independent reference samples, then supply their IDs through `reference_samples`.
+To score new samples, select temporal genes and fit the trajectory using reference samples that are not part of the scored set, then pass those IDs through `reference_samples`. Reference samples need finite timepoints; scored non-reference samples may have missing timepoints.
 
 ## Input requirements
 
-- Both functions use `sample_id` and `day_numeric` as the default metadata columns; set `sample_id_col` and `time_col` when your metadata uses different names.
-- `select_temporal_genes()` requires integer-like, unnormalized counts; it calculates TMM CPM internally. It also requires VST expression with the same gene and sample identifiers as the count matrix.
-- `select_temporal_genes()` requires sample metadata with one row per expression sample, matching sample IDs, and finite numeric timepoints.
-- `score_differentiation_timing()` requires matching sample IDs, normalized expression such as VST expression, and temporal genes selected without using the samples being scored. Reference samples must have finite timepoints; non-reference samples can have missing timepoints. Supply `reference_samples` to fit the PCA and trajectory on a reference cohort before scoring new samples.
+- `get_temporal_genes()` requires integer-like, unnormalized counts. It calculates TMM CPM internally and also requires VST expression with the same gene and sample identifiers as the count matrix.
+- `get_temporal_genes()` requires one metadata row per expression sample, matching sample IDs, and finite numeric timepoints.
+- `score_differentiation_timing()` requires matching sample IDs, normalized expression such as VST expression, and temporal genes selected without using the samples being scored.
+- `run_loo_maturation()` requires count and VST matrices plus metadata containing `sample_id`, `cell_line`, and `day_numeric`; it selects genes and fits the trajectory separately for each held-out cell line.
 
 ## Interpret the result
 
-`timing_fit$scores` reports one row per sample:
+`timing_fit$scores` contains one row per sample:
 
 - `predicted_time` is the estimated position on the original reference-time scale.
-- `differentiation_score` maps the earliest and latest reference timepoints to 0 and 1, respectively.
-- `squared_distance` measures how far the sample lies from its nearest fitted trajectory segment in PCA space.
+- `differentiation_score` maps the earliest and latest reference timepoints to 0 and 1.
+- `squared_distance` is the squared distance to the nearest fitted trajectory segment in PCA space.
 
-The score is relative to the selected reference. Compare scores within the same reference frame and inspect `squared_distance` alongside the timing estimate when a sample may not fit the learned trajectory.
+The score is relative to the selected reference. Compare scores within the same reference frame and inspect `squared_distance` when a sample may not fit the learned trajectory.
 
 ## Data and tutorial
 
-The repository includes processed metadata, raw counts, and VST expression from a [GEO accession GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380) case study. These files support the tutorial but are not required for the Quick start. The repository starts from processed matrices; see the tutorial for data-preparation details.
+The repository includes processed metadata, raw counts, and VST expression from [GEO accession GSE122380](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122380). These files support the tutorial but are not required for the Quick start. The tutorial source is [`docs/tutorial/tutorial.Rmd`](docs/tutorial/tutorial.Rmd), and the rendered tutorial is available [on GitHub Pages](https://zohebkhan1.github.io/pca-maturation-scoring/).
 
-Use the [tutorial](https://zohebkhan1.github.io/pca-maturation-scoring/) for the analysis workflow, figures, leave-one-cell-line-out validation, interpretation, and adaptation. The functions are [`functions/select_temporal_genes.R`](functions/select_temporal_genes.R) and [`functions/score_differentiation_timing.R`](functions/score_differentiation_timing.R).
+The tutorial covers the full analysis workflow, figures, leave-one-cell-line-out validation, interpretation, and adaptation. The functions are [`get_temporal_genes.R`](functions/get_temporal_genes.R), [`score_differentiation_timing.R`](functions/score_differentiation_timing.R), and [`run_loo_maturation.R`](functions/run_loo_maturation.R).
 
 ## Citations
 

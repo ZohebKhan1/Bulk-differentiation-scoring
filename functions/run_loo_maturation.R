@@ -1,4 +1,4 @@
-.leave_one_cell_line_out_validation_settings <- function(
+.run_loo_maturation_settings <- function(
     expression_cpm_cutoff,
     lrt_padj_cutoff,
     vst_dynamic_range_cutoff) {
@@ -10,7 +10,7 @@
   )
 }
 
-#' Run leave-one-cell-line-out timing validation
+#' Run leave-one-cell-line-out maturation validation
 #'
 #' Temporal genes, the PCA reference space, and the scoring polyline are refit
 #' inside every held-out fold. The function is deliberately free of file I/O so
@@ -25,7 +25,7 @@
 #'
 #' @return A list containing held-out scores, fold summaries, and detailed fold
 #'   results. The function does not save the returned object.
-run_leave_one_cell_line_out_validation <- function(
+run_loo_maturation <- function(
     counts,
     vst,
     metadata,
@@ -136,7 +136,7 @@ run_leave_one_cell_line_out_validation <- function(
     training_metadata$cell_line <- droplevels(factor(training_metadata$cell_line))
     training_sample_ids <- training_metadata$sample_id
 
-    temporal_selection <- select_temporal_genes(
+    temporal_selection <- get_temporal_genes(
       raw_counts = counts[, training_sample_ids, drop = FALSE],
       vst_expression = vst[, training_sample_ids, drop = FALSE],
       metadata = training_metadata,
@@ -222,7 +222,7 @@ run_leave_one_cell_line_out_validation <- function(
   rownames(summary_table) <- NULL
 
   list(
-    settings = .leave_one_cell_line_out_validation_settings(
+    settings = .run_loo_maturation_settings(
       expression_cpm_cutoff,
       lrt_padj_cutoff,
       vst_dynamic_range_cutoff

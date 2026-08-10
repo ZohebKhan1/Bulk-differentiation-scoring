@@ -1,4 +1,4 @@
-#' Select temporal genes from raw counts and VST expression
+#' Get temporal genes from raw counts and VST expression
 #'
 #' Genes must pass a maximum day-mean TMM CPM threshold, a DESeq2 likelihood-
 #' ratio test (LRT) for categorical time, and a minimum day-mean VST range.
@@ -30,7 +30,7 @@
 #' @return A list containing ordered temporal genes, LRT results, day-mean TMM
 #'   CPM and VST matrices, the reference samples, the generated DESeq2 design,
 #'   and a one-row filtering summary.
-select_temporal_genes <- function(
+get_temporal_genes <- function(
   raw_counts,
   vst_expression,
   metadata,
@@ -42,8 +42,8 @@ select_temporal_genes <- function(
   expression_cpm_cutoff = 10,
   lrt_padj_cutoff = 1e-7,
   vst_dynamic_range_cutoff = 0.6) {
-  raw_counts <- .select_temporal_validate_matrix(raw_counts, 'raw_counts')
-  vst_expression <- .select_temporal_validate_matrix(
+  raw_counts <- .get_temporal_validate_matrix(raw_counts, 'raw_counts')
+  vst_expression <- .get_temporal_validate_matrix(
     vst_expression,
     'vst_expression'
   )
@@ -58,13 +58,13 @@ select_temporal_genes <- function(
     )
   }
 
-  .select_temporal_validate_threshold(
+  .get_temporal_validate_threshold(
     expression_cpm_cutoff,
     'expression_cpm_cutoff',
     lower_bound = 0,
     lower_inclusive = TRUE
   )
-  .select_temporal_validate_threshold(
+  .get_temporal_validate_threshold(
     lrt_padj_cutoff,
     'lrt_padj_cutoff',
     lower_bound = 0,
@@ -72,15 +72,15 @@ select_temporal_genes <- function(
     lower_inclusive = FALSE,
     upper_inclusive = FALSE
   )
-  .select_temporal_validate_threshold(
+  .get_temporal_validate_threshold(
     vst_dynamic_range_cutoff,
     'vst_dynamic_range_cutoff',
     lower_bound = 0,
     lower_inclusive = TRUE
   )
 
-  .select_temporal_validate_column_name(sample_id_col, 'sample_id_col')
-  .select_temporal_validate_column_name(time_col, 'time_col')
+  .get_temporal_validate_column_name(sample_id_col, 'sample_id_col')
+  .get_temporal_validate_column_name(time_col, 'time_col')
   if (!is.data.frame(metadata) || nrow(metadata) < 1L) {
     stop('`metadata` must be a non-empty data frame.', call. = FALSE)
   }
@@ -111,7 +111,7 @@ select_temporal_genes <- function(
   if (length(forbidden_covariates) > 0L) {
     stop(
       '`adjustment_covariates` cannot include the sample-ID or time column: ',
-      .select_temporal_format_values(forbidden_covariates),
+      .get_temporal_format_values(forbidden_covariates),
       '. Time is added to the full model automatically.',
       call. = FALSE
     )
@@ -128,7 +128,7 @@ select_temporal_genes <- function(
     )
   }
   if (!is.null(reference_group_col)) {
-    .select_temporal_validate_column_name(
+    .get_temporal_validate_column_name(
       reference_group_col,
       'reference_group_col'
     )
@@ -156,9 +156,9 @@ select_temporal_genes <- function(
   if (length(missing_core_columns) > 0L) {
     stop(
       '`metadata` is missing the requested sample-ID or time column(s): ',
-      .select_temporal_format_values(missing_core_columns),
+      .get_temporal_format_values(missing_core_columns),
       '. Available columns: ',
-      .select_temporal_format_values(names(metadata), max_values = 12L),
+      .get_temporal_format_values(names(metadata), max_values = 12L),
       '.',
       call. = FALSE
     )
@@ -171,7 +171,7 @@ select_temporal_genes <- function(
       '`reference_group_col` specifies "',
       reference_group_col,
       '", but `metadata` does not contain that column. Available columns: ',
-      .select_temporal_format_values(names(metadata), max_values = 12L),
+      .get_temporal_format_values(names(metadata), max_values = 12L),
       '.',
       call. = FALSE
     )
@@ -183,9 +183,9 @@ select_temporal_genes <- function(
   if (length(missing_adjustment_covariates) > 0L) {
     stop(
       '`adjustment_covariates` contains column(s) not found in `metadata`: ',
-      .select_temporal_format_values(missing_adjustment_covariates),
+      .get_temporal_format_values(missing_adjustment_covariates),
       '. Available columns: ',
-      .select_temporal_format_values(names(metadata), max_values = 12L),
+      .get_temporal_format_values(names(metadata), max_values = 12L),
       '. Set `adjustment_covariates = NULL` for an unadjusted time LRT.',
       call. = FALSE
     )
@@ -207,7 +207,7 @@ select_temporal_genes <- function(
       '`metadata[["',
       sample_id_col,
       '"]]` contains missing or empty sample IDs at row(s): ',
-      .select_temporal_format_values(which(invalid_sample_ids)),
+      .get_temporal_format_values(which(invalid_sample_ids)),
       '.',
       call. = FALSE
     )
@@ -218,7 +218,7 @@ select_temporal_genes <- function(
       '`metadata[["',
       sample_id_col,
       '"]]` contains duplicate sample ID(s): ',
-      .select_temporal_format_values(duplicate_sample_ids),
+      .get_temporal_format_values(duplicate_sample_ids),
       '.',
       call. = FALSE
     )
@@ -231,7 +231,7 @@ select_temporal_genes <- function(
   if (length(missing_vst_genes) > 0L || length(extra_vst_genes) > 0L) {
     stop(
       '`raw_counts` and `vst_expression` must contain exactly the same gene IDs. ',
-      .select_temporal_set_difference_message(
+      .get_temporal_set_difference_message(
         missing_vst_genes,
         extra_vst_genes,
         'missing from `vst_expression`',
@@ -248,7 +248,7 @@ select_temporal_genes <- function(
   if (length(missing_vst_samples) > 0L || length(extra_vst_samples) > 0L) {
     stop(
       '`raw_counts` and `vst_expression` must contain exactly the same sample IDs. ',
-      .select_temporal_set_difference_message(
+      .get_temporal_set_difference_message(
         missing_vst_samples,
         extra_vst_samples,
         'missing from `vst_expression`',
@@ -265,7 +265,7 @@ select_temporal_genes <- function(
   ) {
     stop(
       '`metadata` and the expression matrices must contain exactly the same sample IDs. ',
-      .select_temporal_set_difference_message(
+      .get_temporal_set_difference_message(
         missing_metadata_samples,
         extra_metadata_samples,
         'missing from `metadata`',
@@ -309,7 +309,7 @@ select_temporal_genes <- function(
         '`metadata[["',
         reference_group_col,
         '"]]` contains missing or empty group labels for sample(s): ',
-        .select_temporal_format_values(
+        .get_temporal_format_values(
           raw_sample_ids[invalid_reference_values]
         ),
         '.',
@@ -326,7 +326,7 @@ select_temporal_genes <- function(
         '" was not found in `metadata[["',
         reference_group_col,
         '"]]`. Available values: ',
-        .select_temporal_format_values(available_reference_values),
+        .get_temporal_format_values(available_reference_values),
         '.',
         call. = FALSE
       )
@@ -361,7 +361,7 @@ select_temporal_genes <- function(
       '`metadata[["',
       time_col,
       '"]]` contains missing or non-finite timepoints for reference sample(s): ',
-      .select_temporal_format_values(
+      .get_temporal_format_values(
         reference_sample_ids[invalid_times]
       ),
       '.',
@@ -374,7 +374,7 @@ select_temporal_genes <- function(
       'Reference samples must span at least two distinct values in `metadata[["',
       time_col,
       '"]]`; found: ',
-      .select_temporal_format_values(days),
+      .get_temporal_format_values(days),
       '.',
       call. = FALSE
     )
@@ -398,7 +398,7 @@ select_temporal_genes <- function(
         'Adjustment covariate `',
         covariate,
         '` contains missing, empty, or non-finite values for reference sample(s): ',
-        .select_temporal_format_values(
+        .get_temporal_format_values(
           reference_sample_ids[invalid_covariate_values]
         ),
         '.',
@@ -441,14 +441,14 @@ select_temporal_genes <- function(
     stats::as.formula('~ 1')
   }
 
-  .select_temporal_validate_design(full_design, lrt_metadata, 'full')
-  .select_temporal_validate_design(reduced_design, lrt_metadata, 'reduced')
+  .get_temporal_validate_design(full_design, lrt_metadata, 'full')
+  .get_temporal_validate_design(reduced_design, lrt_metadata, 'reduced')
 
   library_sizes <- colSums(reference_raw_counts)
   if (any(!is.finite(library_sizes) | library_sizes <= 0)) {
     stop(
       '`raw_counts` has zero or non-finite library sizes for reference sample(s): ',
-      .select_temporal_format_values(
+      .get_temporal_format_values(
         reference_sample_ids[!is.finite(library_sizes) | library_sizes <= 0]
       ),
       '.',
@@ -540,8 +540,8 @@ select_temporal_genes <- function(
     )
   }
 
-  full_design_label <- .select_temporal_format_formula(full_design)
-  reduced_design_label <- .select_temporal_format_formula(reduced_design)
+  full_design_label <- .get_temporal_format_formula(full_design)
+  reduced_design_label <- .get_temporal_format_formula(reduced_design)
   summary <- data.frame(
     input_genes = nrow(raw_counts),
     input_samples = ncol(raw_counts),
@@ -588,7 +588,7 @@ select_temporal_genes <- function(
   )
 }
 
-.select_temporal_validate_matrix <- function(value, argument_name) {
+.get_temporal_validate_matrix <- function(value, argument_name) {
   value <- as.matrix(value)
   if (!is.numeric(value) || length(dim(value)) != 2L) {
     stop('`', argument_name, '` must be a numeric matrix.', call. = FALSE)
@@ -636,7 +636,7 @@ select_temporal_genes <- function(
   value
 }
 
-.select_temporal_validate_column_name <- function(value, argument_name) {
+.get_temporal_validate_column_name <- function(value, argument_name) {
   if (!is.character(value) || length(value) != 1L || is.na(value) || !nzchar(value)) {
     stop(
       '`',
@@ -647,7 +647,7 @@ select_temporal_genes <- function(
   }
 }
 
-.select_temporal_validate_threshold <- function(
+.get_temporal_validate_threshold <- function(
   value,
   argument_name,
   lower_bound,
@@ -685,7 +685,7 @@ select_temporal_genes <- function(
   }
 }
 
-.select_temporal_validate_design <- function(design, metadata, design_name) {
+.get_temporal_validate_design <- function(design, metadata, design_name) {
   model_matrix <- tryCatch(
     stats::model.matrix(design, data = metadata),
     error = function(error) {
@@ -693,7 +693,7 @@ select_temporal_genes <- function(
         'Could not construct the ',
         design_name,
         ' DESeq2 model matrix from ',
-        .select_temporal_format_formula(design),
+        .get_temporal_format_formula(design),
         ': ',
         conditionMessage(error),
         call. = FALSE
@@ -705,7 +705,7 @@ select_temporal_genes <- function(
       'The ',
       design_name,
       ' DESeq2 model matrix is not full rank for ',
-      .select_temporal_format_formula(design),
+      .get_temporal_format_formula(design),
       '. The selected adjustment covariates may be confounded with time or with each other.',
       call. = FALSE
     )
@@ -725,11 +725,11 @@ select_temporal_genes <- function(
   invisible(model_matrix)
 }
 
-.select_temporal_format_formula <- function(formula) {
+.get_temporal_format_formula <- function(formula) {
   paste(deparse(formula, width.cutoff = 500L), collapse = '')
 }
 
-.select_temporal_format_values <- function(values, max_values = 5L) {
+.get_temporal_format_values <- function(values, max_values = 5L) {
   values <- as.character(values)
   displayed_values <- utils::head(values, max_values)
   paste0(
@@ -738,7 +738,7 @@ select_temporal_genes <- function(
   )
 }
 
-.select_temporal_set_difference_message <- function(
+.get_temporal_set_difference_message <- function(
   missing_values,
   extra_values,
   missing_label,
@@ -750,7 +750,7 @@ select_temporal_genes <- function(
       paste0(
         missing_label,
         ': ',
-        .select_temporal_format_values(missing_values)
+        .get_temporal_format_values(missing_values)
       )
     )
   }
@@ -760,7 +760,7 @@ select_temporal_genes <- function(
       paste0(
         extra_label,
         ': ',
-        .select_temporal_format_values(extra_values)
+        .get_temporal_format_values(extra_values)
       )
     )
   }

@@ -1,5 +1,5 @@
 book_filename: "index"
-output_dir: "../docs"
+output_dir: ".."
 delete_merged_file: true
 language:
   ui:

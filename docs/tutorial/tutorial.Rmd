@@ -197,9 +197,9 @@ therefore indicates that categorical time improves fit after accounting for the
 selected covariates; the test does not assume a linear expression trend.
 
 ```{r temporal-filter-code, eval=FALSE, echo=TRUE}
-source('functions/select_temporal_genes.R')
+source('functions/get_temporal_genes.R')
 
-temporal_selection <- select_temporal_genes(
+temporal_selection <- get_temporal_genes(
   raw_counts = counts,
   vst_expression = vst,
   metadata = metadata,

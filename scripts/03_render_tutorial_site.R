@@ -1,6 +1,6 @@
 library(bookdown)
 
-source_font_dir = 'tutorial/assets/fonts'
+source_font_dir = 'docs/tutorial/assets/fonts'
 site_fonts <- file.path(
   source_font_dir,
   c(
@@ -16,7 +16,7 @@ site_fonts <- file.path(
 source('scripts/01_build_tutorial_objects.R')
 
 render_book(
-  input = 'tutorial',
+  input = 'docs/tutorial',
   output_format = 'bookdown::gitbook',
   clean = TRUE,
   envir = globalenv()

@@ -1,15 +1,15 @@
 library(DESeq2)
 library(edgeR)
 
-source('src/load_GSE122380_data.R')
-source('src/run_leave_one_cell_line_out_validation.R')
-source('functions/select_temporal_genes.R')
+source('data/load_GSE122380_data.R')
+source('functions/run_loo_maturation.R')
+source('functions/get_temporal_genes.R')
 source('functions/score_differentiation_timing.R')
 
-validation_cache_path <- 'cache/GSE122380_leave_one_cell_line_out_validation.rds'
+validation_cache_path <- 'cache/GSE122380_loo_maturation.rds'
 
 GSE122380_data <- load_GSE122380_data()
-validation_output <- run_leave_one_cell_line_out_validation(
+validation_output <- run_loo_maturation(
   counts = GSE122380_data$counts,
   vst = GSE122380_data$vst,
   metadata = GSE122380_data$metadata

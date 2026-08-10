@@ -14,9 +14,9 @@ library(systemfonts)
 library(viridis)
 
 # source project functions
-source('src/load_GSE122380_data.R', local = TRUE)
-source('src/run_leave_one_cell_line_out_validation.R', local = TRUE)
-source('functions/select_temporal_genes.R', local = TRUE)
+source('data/load_GSE122380_data.R', local = TRUE)
+source('functions/run_loo_maturation.R', local = TRUE)
+source('functions/get_temporal_genes.R', local = TRUE)
 source('functions/score_differentiation_timing.R', local = TRUE)
 
 # 1.0 define script parameters and paths -----------------
@@ -26,8 +26,8 @@ lrt_padj_cutoff = 1e-7
 vst_dynamic_range_cutoff = 0.6
 
 docs_figure_dir = 'docs/assets/figures'
-tutorial_font_dir = 'tutorial/assets/fonts'
-loo_validation_cache_path = 'cache/GSE122380_leave_one_cell_line_out_validation.rds'
+tutorial_font_dir = 'docs/tutorial/assets/fonts'
+loo_validation_cache_path = 'cache/GSE122380_loo_maturation.rds'
 
 reference_overview_figure_width = 7.20
 reference_overview_figure_height = 3.81
@@ -1094,7 +1094,7 @@ smooth_score_series <- function(y_values) {
 
 days <- sort(unique(metadata$day_numeric))
 day_by_sample <- stats::setNames(metadata$day_numeric, metadata$sample_id)
-temporal_selection <- select_temporal_genes(
+temporal_selection <- get_temporal_genes(
   raw_counts = counts,
   vst_expression = vst,
   metadata = metadata,
@@ -1623,7 +1623,7 @@ p_score_by_day <- ggplot2::ggplot(timing_pca_data, ggplot2::aes(day_numeric, dif
 
 loo_validation <- NULL
 if (file.exists(loo_validation_cache_path)) {
-  expected_validation_settings <- .leave_one_cell_line_out_validation_settings(
+  expected_validation_settings <- .run_loo_maturation_settings(
     expression_cpm_cutoff,
     lrt_padj_cutoff,
     vst_dynamic_range_cutoff
@@ -1665,7 +1665,7 @@ if (file.exists(loo_validation_cache_path)) {
 }
 if (is.null(loo_validation)) {
   message('Validation cache unavailable; running leave-one-cell-line-out validation.')
-  loo_validation <- run_leave_one_cell_line_out_validation(
+  loo_validation <- run_loo_maturation(
     counts = counts,
     vst = vst,
     metadata = metadata,
